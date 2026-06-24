@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: whatsapp_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your_secure_password
+      POSTGRES_DB: whatsapp
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: whatsapp_backend
+    environment:
+      - PORT=3002
+      - DB_USER=postgres
+      - DB_PASSWORD=your_secure_password
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=whatsapp
+      - JWT_SECRET=your_super_secret_jwt_key
+    ports:
+      - "3002:3002"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp_frontend
+    environment:
+      # This needs to be set at BUILD time ideally, but Nginx serves static files.
+      # If your frontend needs to hit the backend dynamically on the public IP,
+      # ensure EXPO_PUBLIC_API_URL was set during the Expo build process.
+      - EXPO_PUBLIC_API_URL=http://47.130.198.221:3002
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

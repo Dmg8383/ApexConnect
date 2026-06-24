@@ -1,0 +1,66 @@
+# electron-builder configuration for ApexConnect
+# Builds distributable installers for Windows and macOS
+
+appId: com.apexconnect.app
+productName: ApexConnect
+copyright: Copyright © 2024 ApexConnect
+
+# Source of the built web files
+directories:
+  output: dist-electron
+  buildResources: assets
+
+# Files to include in the Electron app bundle
+files:
+  - electron/**/*
+  - dist-web/**/*
+  - package.json
+
+# ── Windows ──────────────────────────────────────────────────────────────────
+win:
+  target:
+    - target: nsis        # standard Windows installer (.exe)
+      arch: [x64, ia32]
+  icon: assets/images/icon.png
+  # setContentProtection works on Windows 10 build 2004+ (May 2020 Update)
+  # and Windows 11. On older Windows it degrades gracefully (no crash).
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: assets/images/icon.png
+  uninstallerIcon: assets/images/icon.png
+  installerHeaderIcon: assets/images/icon.png
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]   # Intel + Apple Silicon
+  icon: assets/images/icon.png
+  category: public.app-category.social-networking
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: electron/entitlements.mac.plist
+  entitlementsInherit: electron/entitlements.mac.plist
+
+dmg:
+  contents:
+    - x: 410
+      y: 150
+      type: link
+      path: /Applications
+    - x: 130
+      y: 150
+      type: file
+
+# ── Linux (optional) ─────────────────────────────────────────────────────────
+linux:
+  target:
+    - AppImage
+    - deb
+  icon: assets/images/icon.png
+  category: Network;InstantMessaging
