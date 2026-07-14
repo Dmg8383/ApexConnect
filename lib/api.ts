@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 // Change this to your server IP when testing on a real device via Expo Go.
 // For web (localhost) and Android emulator, localhost works fine.
 const API_BASE_URL =
-  (process.env.EXPO_PUBLIC_API_URL as string) || 'http://localhost:3001';
+  (process.env.EXPO_PUBLIC_API_URL as string);
 
 // ── Token storage (web uses localStorage, native uses SecureStore) ────────────
 

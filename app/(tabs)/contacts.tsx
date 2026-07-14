@@ -27,22 +27,26 @@ export default function ContactsScreen() {
   
   const isDark = theme === 'dark';
 
-  // WhatsApp Theme colors
-  const bgColor = isDark ? '#111B21' : '#FFFFFF';
-  const headerBgColor = isDark ? '#202C33' : '#FFFFFF';
-  const cardBgColor = isDark ? '#111B21' : '#FFFFFF';
-  const inputBgColor = isDark ? '#202C33' : '#F0F2F5';
-  const textColor = isDark ? '#E9EDEF' : '#111B21';
-  const subTextColor = isDark ? '#8696A0' : '#54656F';
-  const borderColor = isDark ? '#222E35' : '#E9EDEF';
-  const myIdCardBg = isDark ? '#202C33' : '#F0F2F5';
-  const copyBtnBg = isDark ? '#111B21' : '#FFFFFF';
-  const brandColor = isDark ? '#00A884' : '#25D366';
+  // Premium Dark Mode Colors
+  const bgColor = isDark ? '#18181B' : '#FFFFFF';
+  const headerBgColor = 'transparent';
+  const cardBgColor = isDark ? '#111113' : '#FFFFFF';
+  const inputBgColor = isDark ? 'rgba(255,255,255,0.05)' : '#F0F2F5';
+  const textColor = isDark ? '#FAFAFA' : '#111B21';
+  const subTextColor = isDark ? '#A1A1AA' : '#54656F';
+  const borderColor = isDark ? 'rgba(255,255,255,0.05)' : '#E9EDEF';
+  const myIdCardBg = isDark ? 'rgba(255,255,255,0.02)' : '#F0F2F5';
+  const copyBtnBg = '#10B981';
+  const brandColor = '#10B981';
+  const hoverBg = isDark ? 'rgba(255,255,255,0.03)' : '#F9FAFB';
 
   const [searchId, setSearchId] = useState('');
   const [foundUser, setFoundUser] = useState<User | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'All' | 'Favorites' | 'Online'>('All');
+  const [hoveredContact, setHoveredContact] = useState<string | null>(null);
 
   const { width } = useWindowDimensions();
   const isWideScreen = Platform.OS === 'web' && width > 768;
@@ -134,12 +138,25 @@ export default function ContactsScreen() {
     Alert.alert('Copied', 'Your account ID copied to clipboard');
   };
 
-  const renderContact = ({ item }: { item: User }) => (
+  const renderContact = ({ item }: { item: User }) => {
+    // Simulated online state for demonstration based on ID
+    const isOnline = item.id.length % 2 === 0; 
+    
+    if (activeTab === 'Online' && !isOnline) return null;
+
+    return (
     <TouchableOpacity
-      style={[styles.contactCard, { borderBottomColor: borderColor }]}
+      style={[
+        styles.contactCard, 
+        { borderBottomColor: borderColor },
+        (hoveredContact === item.id) && { backgroundColor: hoverBg, transform: [{ translateX: 4 }] } as any
+      ]}
       onPress={() => handleStartChat(item.id)}
+      onMouseEnter={() => setHoveredContact(item.id)}
+      onMouseLeave={() => setHoveredContact(null)}
+      activeOpacity={0.8}
     >
-      <View style={[styles.contactAvatar, { backgroundColor: isDark ? '#374151' : '#E5E7EB' }]}>
+      <View style={[styles.contactAvatar, { backgroundColor: isDark ? '#374151' : '#E5E7EB', borderWidth: 2, borderColor: isOnline ? '#10B981' : (isDark ? '#374151' : '#E5E7EB') }]}>
         <Text style={[styles.contactAvatarText, { color: isDark ? '#D1D5DB' : '#4B5563' }]}>
           {item.display_name?.charAt(0).toUpperCase() || 'U'}
         </Text>
@@ -149,7 +166,8 @@ export default function ContactsScreen() {
         <Text style={[styles.contactId, { color: subTextColor }]}>ID: {item.id}</Text>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   if (!userId) {
     return <Redirect href="/auth" />;
@@ -164,14 +182,14 @@ export default function ContactsScreen() {
         </Text>
       </View>
 
-      <View style={[styles.myIdContainer, { backgroundColor: myIdCardBg, borderBottomColor: borderColor }]}>
+      <View style={[styles.myIdContainer, { backgroundColor: myIdCardBg, borderColor, borderWidth: 1 }]}>
         <View style={styles.myIdBox}>
           <Text style={[styles.myIdLabel, { color: subTextColor }]}>Your Account ID</Text>
           <Text style={styles.myIdValue}>{userId}</Text>
         </View>
-        <TouchableOpacity style={[styles.copyButton, { backgroundColor: copyBtnBg }]} onPress={copyUserId}>
-          <Check size={20} color={textColor} />
-          <Text style={[styles.copyButtonText, { color: textColor }]}>Copy</Text>
+        <TouchableOpacity style={[styles.copyButton, { backgroundColor: copyBtnBg }]} onPress={() => setShowQRModal(true)}>
+          <QrCode size={18} color="#FAFAFA" />
+          <Text style={[styles.copyButtonText, { color: '#FAFAFA' }]}>Share Profile</Text>
         </TouchableOpacity>
       </View>
 
@@ -248,6 +266,17 @@ export default function ContactsScreen() {
       )}
 
       <View style={styles.contactsListSection}>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+          {['All', 'Favorites', 'Online'].map((tab) => (
+            <TouchableOpacity 
+              key={tab} 
+              onPress={() => setActiveTab(tab as any)}
+              style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 9999, backgroundColor: activeTab === tab ? brandColor : inputBgColor }}
+            >
+               <Text style={{ color: activeTab === tab ? 'white' : textColor, fontWeight: '500', fontFamily: 'Inter, system-ui, sans-serif' }}>{tab}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <Text style={[styles.sectionTitle, { color: textColor }]}>My Contacts</Text>
         {contacts.length === 0 ? (
           <View style={styles.emptyContacts}>
@@ -291,6 +320,27 @@ export default function ContactsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Profile QR Modal */}
+      <Modal visible={showQRModal} animationType="fade" transparent>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+          <View style={{ backgroundColor: bgColor, padding: 32, borderRadius: 24, alignItems: 'center', borderWidth: 1, borderColor, maxWidth: 400, width: '100%' }}>
+             <Text style={{ color: textColor, fontSize: 20, fontWeight: '700', marginBottom: 24, fontFamily: 'Inter, system-ui, sans-serif' }}>Scan to Connect</Text>
+             <View style={{ width: 220, height: 220, backgroundColor: 'white', padding: 16, borderRadius: 16, justifyContent: 'center', alignItems: 'center' }}>
+                <QrCode size={180} color="black" />
+             </View>
+             <Text style={{ color: subTextColor, marginTop: 24, marginBottom: 8, fontFamily: 'Inter, system-ui, sans-serif' }}>{userId}</Text>
+             <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+               <TouchableOpacity onPress={copyUserId} style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: inputBgColor, borderRadius: 12 }}>
+                  <Text style={{ color: textColor, fontWeight: '500' }}>Copy ID</Text>
+               </TouchableOpacity>
+               <TouchableOpacity onPress={() => setShowQRModal(false)} style={{ paddingHorizontal: 24, paddingVertical: 12, backgroundColor: brandColor, borderRadius: 12 }}>
+                  <Text style={{ color: 'white', fontWeight: '600' }}>Close</Text>
+               </TouchableOpacity>
+             </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 
@@ -302,16 +352,20 @@ export default function ContactsScreen() {
         </View>
         <View style={{ flex: 1, backgroundColor: isDark ? '#222E35' : '#F0F2F5', justifyContent: 'center', alignItems: 'center' }}>
           {Platform.OS === 'web' ? (
-            <img 
-              src={((require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg') as any).uri) || require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg')} 
-              style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 16, objectFit: 'contain' }} 
-              alt="Logo"
-            />
+            <div style={{ width: 80, height: 80, marginBottom: 16, overflow: 'hidden', opacity: 0.5, borderRadius: 16 }}>
+              <img 
+                src={((require('../../Gemini_Generated_Image_g4ldb2g4ldb2g4ld-removebg-preview.png') as any).uri) || require('../../Gemini_Generated_Image_g4ldb2g4ldb2g4ld-removebg-preview.png')} 
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+                alt="Logo"
+              />
+            </div>
           ) : (
-            <Image source={require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg')} style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 16 }} />
+            <View style={{ width: 80, height: 80, marginBottom: 16, overflow: 'hidden', opacity: 0.5, borderRadius: 16 }}>
+              <Image source={require('../../Gemini_Generated_Image_g4ldb2g4ldb2g4ld-removebg-preview.png')} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
+            </View>
           )}
-          <Text style={{ color: textColor, fontSize: 24, fontWeight: '300' }}>ApexConnect Contacts</Text>
-          <Text style={{ color: subTextColor, marginTop: 8 }}>Select or search for a contact to start chatting</Text>
+          <Text style={{ color: textColor, fontSize: 24, fontWeight: '600', fontFamily: 'Inter, system-ui, sans-serif' }}>ApexConnect Contacts</Text>
+          <Text style={{ color: subTextColor, marginTop: 8, fontFamily: 'Inter, system-ui, sans-serif' }}>Select or search for a contact to start chatting</Text>
         </View>
       </View>
     );
@@ -343,7 +397,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
+    marginHorizontal: 16,
+    borderRadius: 16,
+    marginBottom: 8,
   },
   myIdBox: {
     flex: 1,
@@ -370,7 +427,7 @@ const styles = StyleSheet.create({
   copyButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   searchSection: {
     padding: 16,
@@ -481,7 +538,10 @@ const styles = StyleSheet.create({
   contactCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    transition: 'all 0.2s ease', // Hover transition for Web
   },
   contactAvatar: {
     width: 44,

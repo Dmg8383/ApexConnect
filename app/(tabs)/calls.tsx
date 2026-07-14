@@ -2,8 +2,10 @@ import React, { useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform, useWindowDimensions, Image } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useCallsHistoryStore, CallLog } from '@/store/callsHistoryStore';
+import { useCallStore } from '@/store/callStore';
+import { useMessagesStore } from '@/store/messagesStore';
 import { FlashList } from '@shopify/flash-list';
-import { Phone, PhoneMissed, PhoneOutgoing, PhoneIncoming, Video, Link as LinkIcon, User, Play } from 'lucide-react-native';
+import { Phone, PhoneMissed, PhoneOutgoing, PhoneIncoming, Video, Link as LinkIcon, User, Play, SignalHigh, SignalMedium, SignalLow, MicOff, MonitorUp, PhoneOff } from 'lucide-react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Linking from 'expo-linking';
 
@@ -12,17 +14,22 @@ export default function CallsScreen() {
   const isDark = theme === 'dark';
   
   const { calls, isLoading, fetchCalls } = useCallsHistoryStore();
+  const { initiateCall } = useCallStore();
+  const { createDirectConversation } = useMessagesStore();
 
   const { width } = useWindowDimensions();
   const isWideScreen = Platform.OS === 'web' && width > 768;
 
-  const bgColor = isDark ? '#111B21' : '#FFFFFF';
-  const cardBgColor = isDark ? '#111B21' : '#FFFFFF';
-  const textColor = isDark ? '#E9EDEF' : '#111B21';
-  const subTextColor = isDark ? '#8696A0' : '#54656F';
-  const borderColor = isDark ? '#222E35' : '#E9EDEF';
-  const brandColor = isDark ? '#00A884' : '#25D366';
+  // Premium Dark Mode Colors
+  const bgColor = isDark ? '#18181B' : '#FFFFFF';
+  const headerBgColor = 'transparent';
+  const cardBgColor = 'transparent';
+  const textColor = isDark ? '#FAFAFA' : '#111B21';
+  const subTextColor = isDark ? '#A1A1AA' : '#54656F';
+  const borderColor = isDark ? 'rgba(255,255,255,0.05)' : '#E9EDEF';
+  const brandColor = '#10B981';
   const dangerColor = '#EF4444';
+  const incomingColor = '#25D366';
 
   useFocusEffect(
     useCallback(() => {
@@ -57,10 +64,17 @@ export default function CallsScreen() {
     if (isOutgoing) {
       return <PhoneOutgoing size={16} color={brandColor} />;
     }
-    return <PhoneIncoming size={16} color={brandColor} />;
+    return <PhoneIncoming size={16} color={incomingColor} />;
   };
 
-  const renderItem = ({ item }: { item: CallLog }) => {
+  const renderSignalBars = (index: number) => {
+    // Simulate call quality randomly based on index
+    if (index % 3 === 0) return <SignalMedium size={14} color={subTextColor} />;
+    if (index % 5 === 0) return <SignalLow size={14} color={dangerColor} />;
+    return <SignalHigh size={14} color={brandColor} />;
+  };
+
+  const renderItem = ({ item, index }: { item: CallLog, index: number }) => {
     const isOutgoing = item.caller_id === userId;
     const otherName = isOutgoing ? item.receiver_name : item.caller_name;
     const otherAvatar = isOutgoing ? item.receiver_avatar : item.caller_avatar;
@@ -87,6 +101,9 @@ export default function CallsScreen() {
             <Text style={[styles.timeText, { color: subTextColor }]}>
               {formatTime(item.created_at)}
             </Text>
+            <View style={{ marginLeft: 8 }}>
+               {renderSignalBars(index)}
+            </View>
           </View>
         </View>
 
@@ -153,13 +170,13 @@ export default function CallsScreen() {
   if (isWideScreen) {
     return (
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: bgColor }}>
-        <View style={{ width: 400, borderRightWidth: 1, borderRightColor: borderColor }}>
+        <View style={{ width: 350, borderRightWidth: 1, borderRightColor: borderColor }}>
           {callsContent}
         </View>
-        <View style={[styles.placeholderContainer, { backgroundColor: isDark ? '#222E35' : '#F0F2F5' }]}>
-           <Text style={[styles.placeholderText, { color: subTextColor }]}>
-             Select a call from the list to see details or start a new call.
-           </Text>
+        <View style={[styles.placeholderContainer, { backgroundColor: isDark ? '#111113' : '#F0F2F5', justifyContent: 'center', alignItems: 'center' }]}>
+           <Phone size={80} color={isDark ? '#374151' : '#D1D5DB'} />
+           <Text style={{ color: textColor, fontSize: 24, marginTop: 24, fontWeight: '300', fontFamily: 'Inter, system-ui, sans-serif' }}>ApexConnect Calls</Text>
+           <Text style={{ color: subTextColor, fontSize: 16, marginTop: 12, maxWidth: 400, textAlign: 'center' }}>Select a contact from your recent calls or start a new call to connect with friends and family.</Text>
         </View>
       </View>
     );
@@ -206,8 +223,9 @@ const styles = StyleSheet.create({
   callItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 12,
     borderBottomWidth: 1,
+    transition: 'all 0.2s ease', // Hover effect
   },
   avatarContainer: {
     marginRight: 16,

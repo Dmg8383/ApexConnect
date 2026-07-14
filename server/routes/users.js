@@ -57,10 +57,12 @@ function sendSMS(mobile, message) {
 }
 
 // POST /api/users — Create a new user account
-router.post('/', async (req, res) => {
+router.post('/signup', async (req, res) => {
   try {
     const { display_name, username, password } = req.body;
-    
+
+    console.log(req.body, "username")
+
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
@@ -95,6 +97,7 @@ router.post('/', async (req, res) => {
 router.post('/signin', async (req, res) => {
   try {
     const { username, password } = req.body;
+    console.log(req.body, "username")
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
@@ -131,7 +134,7 @@ router.post('/signin', async (req, res) => {
     // Audit Log
     let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     if (ip === '::1') ip = '127.0.0.1 (Localhost)';
-    
+
     try {
       await db.query(
         'INSERT INTO audit_logs (user_id, action, ip_address, details) VALUES ($1, $2, $3, $4)',
@@ -208,7 +211,7 @@ router.post('/verify-otp', async (req, res) => {
       userId = generateUserId();
       // Generate a unique fallback username based on phone
       const username = `user_${phone_number}`;
-      
+
       const insertRes = await db.query(
         `INSERT INTO users (id, username, display_name, phone_number) VALUES ($1, $2, $3, $4) RETURNING *`,
         [userId, username, phone_number, phone_number]
@@ -227,7 +230,7 @@ router.post('/verify-otp', async (req, res) => {
     // Audit Log
     let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     if (ip === '::1') ip = '127.0.0.1 (Localhost)';
-    
+
     try {
       await db.query(
         'INSERT INTO audit_logs (user_id, action, ip_address, details) VALUES ($1, $2, $3, $4)',
@@ -247,7 +250,7 @@ router.post('/logout', auth, async (req, res) => {
   try {
     let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     if (ip === '::1') ip = '127.0.0.1 (Localhost)';
-    
+
     await db.query(
       'INSERT INTO audit_logs (user_id, action, ip_address) VALUES ($1, $2, $3)',
       [req.userId, 'logout', ip]
@@ -321,7 +324,7 @@ router.post('/support', auth, async (req, res) => {
   try {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
-    
+
     await db.query(
       'INSERT INTO support_messages (user_id, message) VALUES ($1, $2)',
       [req.userId, message]

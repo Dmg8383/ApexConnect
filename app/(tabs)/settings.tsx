@@ -23,6 +23,8 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, userId, signOut, updateProfile, theme, setTheme } = useAuthStore();
   const [isEditingName, setIsEditingName] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [demoToggle, setDemoToggle] = useState(true);
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const { width } = useWindowDimensions();
   const isWideScreen = Platform.OS === 'web' && width > 768;
@@ -130,16 +132,24 @@ export default function SettingsScreen() {
     }
   };
 
-  // Dynamic Styles based on theme
+  // Premium Dark Mode Colors
   const isDark = theme === 'dark';
-  const bgColor = isDark ? '#111B21' : '#F0F2F5';
-  const headerBgColor = isDark ? '#202C33' : '#FFFFFF';
-  const cardBg = isDark ? '#111B21' : '#FFFFFF';
-  const textColor = isDark ? '#E9EDEF' : '#111B21';
-  const subTextColor = isDark ? '#8696A0' : '#54656F';
-  const borderColor = isDark ? '#222E35' : '#E9EDEF';
-  const iconColor = isDark ? '#8696A0' : '#54656F';
-  const brandColor = isDark ? '#00A884' : '#25D366';
+  const bgColor = isDark ? '#18181B' : '#F0F2F5';
+  const headerBgColor = 'transparent';
+  const cardBg = 'transparent';
+  const textColor = isDark ? '#FAFAFA' : '#111B21';
+  const subTextColor = isDark ? '#A1A1AA' : '#54656F';
+  const borderColor = isDark ? 'rgba(255,255,255,0.05)' : '#E9EDEF';
+  const iconColor = isDark ? '#FAFAFA' : '#54656F';
+  const brandColor = '#10B981';
+  
+  const handleCategoryPress = (category: string, route: string) => {
+    if (isWideScreen) {
+      setActiveCategory(category);
+    } else {
+      router.push(route as any);
+    }
+  };
 
   if (!userId) {
     return <Redirect href="/auth" />;
@@ -207,40 +217,32 @@ export default function SettingsScreen() {
       </View>
 
       <View style={[styles.settingsList, { backgroundColor: cardBg }]}>
-        <TouchableOpacity style={styles.optionRow} onPress={() => router.push('/settings/account')}>
-          <Key size={24} color={iconColor} />
+        <TouchableOpacity style={styles.optionRow} onPress={() => handleCategoryPress('account', '/settings/account')}>
+          <Key size={24} color={iconColor} strokeWidth={2.5} />
           <View style={styles.optionContent}>
             <Text style={[styles.optionLabel, { color: textColor }]}>Account</Text>
             <Text style={[styles.optionHint, { color: subTextColor }]}>Security notifications, change number</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.optionRow} onPress={() => router.push('/settings/privacy')}>
-          <Shield size={24} color={iconColor} />
+        <TouchableOpacity style={styles.optionRow} onPress={() => handleCategoryPress('privacy', '/settings/privacy')}>
+          <Shield size={24} color={iconColor} strokeWidth={2.5} />
           <View style={styles.optionContent}>
             <Text style={[styles.optionLabel, { color: textColor }]}>Privacy</Text>
             <Text style={[styles.optionHint, { color: subTextColor }]}>Block contacts, disappearing messages</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.optionRow} onPress={() => router.push('/settings/chats')}>
-          <MessageCircle size={24} color={iconColor} />
-          <View style={styles.optionContent}>
-            <Text style={[styles.optionLabel, { color: textColor }]}>Chats</Text>
-            <Text style={[styles.optionHint, { color: subTextColor }]}>Theme, wallpapers, chat history</Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.optionRow} onPress={toggleTheme}>
-          {isDark ? <Sun size={24} color={iconColor} /> : <Moon size={24} color={iconColor} />}
+        <TouchableOpacity style={styles.optionRow} onPress={() => handleCategoryPress('theme', '/settings/chats')}>
+          {isDark ? <Sun size={24} color={iconColor} strokeWidth={2.5} /> : <Moon size={24} color={iconColor} strokeWidth={2.5} />}
           <View style={styles.optionContent}>
             <Text style={[styles.optionLabel, { color: textColor }]}>Theme</Text>
-            <Text style={[styles.optionHint, { color: subTextColor }]}>{isDark ? 'Dark mode' : 'Light mode'} (Tap to toggle)</Text>
+            <Text style={[styles.optionHint, { color: subTextColor }]}>Customize visual appearance</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.optionRow} onPress={() => router.push('/settings/notifications')}>
-          <Bell size={24} color={iconColor} />
+        <TouchableOpacity style={styles.optionRow} onPress={() => handleCategoryPress('notifications', '/settings/notifications')}>
+          <Bell size={24} color={iconColor} strokeWidth={2.5} />
           <View style={styles.optionContent}>
             <Text style={[styles.optionLabel, { color: textColor }]}>Notifications</Text>
             <Text style={[styles.optionHint, { color: subTextColor }]}>Message, group & call tones</Text>
@@ -248,22 +250,15 @@ export default function SettingsScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.optionRow} onPress={() => setIsHelpModalVisible(true)}>
-          <HelpCircle size={24} color={iconColor} />
+          <HelpCircle size={24} color={iconColor} strokeWidth={2.5} />
           <View style={styles.optionContent}>
             <Text style={[styles.optionLabel, { color: textColor }]}>Help</Text>
             <Text style={[styles.optionHint, { color: subTextColor }]}>Help center, contact us, privacy policy</Text>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.optionRow} onPress={() => router.push('/settings/invite')}>
-          <Users size={24} color={iconColor} />
-          <View style={styles.optionContent}>
-            <Text style={[styles.optionLabel, { color: textColor }]}>Invite a friend</Text>
-          </View>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.optionRow} onPress={handleSignOut}>
-          <LogOut size={24} color="#EF4444" />
+          <LogOut size={24} color="#EF4444" strokeWidth={2.5} />
           <View style={styles.optionContent}>
             <Text style={[styles.optionLabel, { color: '#EF4444' }]}>Log out</Text>
           </View>
@@ -321,21 +316,51 @@ export default function SettingsScreen() {
   if (isWideScreen) {
     return (
       <View style={{ flex: 1, flexDirection: 'row', backgroundColor: bgColor }}>
-        <View style={{ width: 400, borderRightWidth: 1, borderRightColor: borderColor }}>
+        <View style={{ width: 350, borderRightWidth: 1, borderRightColor: borderColor }}>
           {settingsContent}
         </View>
-        <View style={{ flex: 1, backgroundColor: isDark ? '#222E35' : '#F0F2F5', justifyContent: 'center', alignItems: 'center' }}>
-          {Platform.OS === 'web' ? (
-            <img 
-              src={((require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg') as any).uri) || require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg')} 
-              style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 16, objectFit: 'contain' }} 
-              alt="Logo"
-            />
-          ) : (
-            <Image source={require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg')} style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 16 }} />
+        <View style={{ flex: 1, backgroundColor: isDark ? '#111113' : '#F0F2F5', padding: 40 }}>
+          {activeCategory === 'theme' && (
+             <View style={{ maxWidth: 600 }}>
+                <Text style={{ color: textColor, fontSize: 32, fontWeight: '700', marginBottom: 32, fontFamily: 'Inter, system-ui, sans-serif' }}>Appearance</Text>
+                <Text style={{ color: subTextColor, fontSize: 16, marginBottom: 24, fontFamily: 'Inter, system-ui, sans-serif' }}>Customize how ApexConnect looks on your device.</Text>
+                
+                <View style={{ flexDirection: 'row', gap: 24 }}>
+                   <TouchableOpacity onPress={() => setTheme('dark')} style={{ flex: 1, backgroundColor: '#18181B', borderWidth: 2, borderColor: isDark ? brandColor : 'transparent', borderRadius: 16, padding: 24, alignItems: 'center' }}>
+                      <Moon size={40} color="#FAFAFA" />
+                      <Text style={{ color: '#FAFAFA', marginTop: 16, fontSize: 18, fontWeight: '600', fontFamily: 'Inter, system-ui, sans-serif' }}>Dark</Text>
+                   </TouchableOpacity>
+                   <TouchableOpacity onPress={() => setTheme('light')} style={{ flex: 1, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: !isDark ? brandColor : 'transparent', borderRadius: 16, padding: 24, alignItems: 'center' }}>
+                      <Sun size={40} color="#111B21" />
+                      <Text style={{ color: '#111B21', marginTop: 16, fontSize: 18, fontWeight: '600', fontFamily: 'Inter, system-ui, sans-serif' }}>Light</Text>
+                   </TouchableOpacity>
+                </View>
+             </View>
           )}
-          <Text style={{ color: textColor, fontSize: 24, fontWeight: '300' }}>ApexConnect Settings</Text>
-          <Text style={{ color: subTextColor, marginTop: 8 }}>Customize your experience</Text>
+
+          {activeCategory === 'privacy' && (
+             <View style={{ maxWidth: 600 }}>
+                <Text style={{ color: textColor, fontSize: 32, fontWeight: '700', marginBottom: 32, fontFamily: 'Inter, system-ui, sans-serif' }}>Privacy</Text>
+                
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: borderColor }}>
+                   <View>
+                      <Text style={{ color: textColor, fontSize: 18, fontWeight: '600', fontFamily: 'Inter, system-ui, sans-serif' }}>Read Receipts</Text>
+                      <Text style={{ color: subTextColor, marginTop: 4, fontFamily: 'Inter, system-ui, sans-serif' }}>Let others know you've read their messages.</Text>
+                   </View>
+                   <TouchableOpacity onPress={() => setDemoToggle(!demoToggle)} style={{ width: 50, height: 28, borderRadius: 14, backgroundColor: demoToggle ? brandColor : (isDark ? '#374151' : '#E5E7EB'), padding: 2 }}>
+                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: 'white', transform: [{ translateX: demoToggle ? 22 : 0 }], transition: 'all 0.2s ease' as any }} />
+                   </TouchableOpacity>
+                </View>
+             </View>
+          )}
+
+          {!activeCategory && (
+             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+               <Shield size={64} color={isDark ? '#374151' : '#D1D5DB'} />
+               <Text style={{ color: textColor, fontSize: 24, fontWeight: '600', marginTop: 24, fontFamily: 'Inter, system-ui, sans-serif' }}>Settings</Text>
+               <Text style={{ color: subTextColor, marginTop: 8, fontFamily: 'Inter, system-ui, sans-serif' }}>Select a category from the left to manage your preferences.</Text>
+             </View>
+          )}
         </View>
       </View>
     );
@@ -443,20 +468,26 @@ const styles = StyleSheet.create({
   optionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 18,
-    gap: 24,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginHorizontal: 8,
+    marginBottom: 4,
+    transition: 'all 0.2s ease', // Hover transition for Web
   },
   optionContent: {
     flex: 1,
+    marginLeft: 20,
   },
   optionLabel: {
     fontSize: 17,
-    fontWeight: '400',
+    fontWeight: '500',
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   optionHint: {
     fontSize: 14,
     marginTop: 2,
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   version: {
     textAlign: 'center',

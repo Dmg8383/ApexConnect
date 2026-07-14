@@ -25,16 +25,17 @@ export default function ChatsScreen() {
   const { userId, user, theme } = useAuthStore();
   const isDark = theme === 'dark';
 
-  // WhatsApp Theme colors
-  const bgColor = isDark ? '#111B21' : '#FFFFFF';
-  const headerBgColor = isDark ? '#202C33' : '#FFFFFF';
-  const cardBgColor = isDark ? '#111B21' : '#FFFFFF';
-  const textColor = isDark ? '#E9EDEF' : '#111B21';
-  const subTextColor = isDark ? '#8696A0' : '#54656F';
-  const borderColor = isDark ? '#222E35' : '#E9EDEF';
-  const searchBgColor = isDark ? '#202C33' : '#F0F2F5';
-  const brandColor = isDark ? '#00A884' : '#25D366';
-  const fabBgColor = isDark ? '#00A884' : '#00A884';
+  // Premium Dark Mode Colors
+  const bgColor = isDark ? '#18181B' : '#FFFFFF';
+  const headerBgColor = isDark ? '#18181B' : '#FFFFFF';
+  const cardBgColor = 'transparent';
+  const textColor = isDark ? '#FAFAFA' : '#111B21';
+  const subTextColor = isDark ? '#A1A1AA' : '#54656F';
+  const borderColor = isDark ? 'rgba(255,255,255,0.05)' : '#E9EDEF';
+  const searchBgColor = isDark ? 'rgba(255,255,255,0.05)' : '#F0F2F5';
+  const brandColor = '#10B981';
+  const fabBgColor = '#10B981';
+  const activeChatBg = isDark ? 'rgba(255,255,255,0.08)' : '#F0F2F5';
   const {
     conversations,
     isLoading,
@@ -149,7 +150,7 @@ export default function ChatsScreen() {
 
     return (
       <TouchableOpacity
-        style={[styles.conversationItem, { backgroundColor: item.id === activeChatId && isWideScreen ? (isDark ? '#2A3942' : '#F0F2F5') : cardBgColor, borderBottomColor: borderColor }]}
+        style={[styles.conversationItem, { backgroundColor: item.id === activeChatId && isWideScreen ? activeChatBg : cardBgColor, borderBottomColor: borderColor }]}
         onPress={() => {
           if (isWideScreen) {
             setActiveChatId(item.id);
@@ -246,12 +247,7 @@ export default function ChatsScreen() {
     <View style={[styles.container, { backgroundColor: bgColor }]}>
       <View style={[styles.header, { backgroundColor: headerBgColor }]}>
         <View style={styles.headerTop}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {Platform.OS === 'web' ? (
-              <img src={((require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg') as any).uri) || require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg')} style={{ width: 28, height: 28, borderRadius: 6, marginRight: 8, objectFit: 'contain' }} alt="Logo" />
-            ) : (
-              <Image source={require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg')} style={{ width: 28, height: 28, borderRadius: 6, marginRight: 8 }} />
-            )}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 8 }}>
             <Text style={[styles.headerTitle, { color: brandColor }]}>ApexConnect</Text>
           </View>
           <View style={styles.headerIcons}>
@@ -268,10 +264,10 @@ export default function ChatsScreen() {
         </View>
       </View>
 
-      <View style={[styles.searchWrapper, { backgroundColor: bgColor }]}>
-        <View style={[styles.searchContainer, { backgroundColor: searchBgColor }]}>
-          <Search size={20} color={subTextColor} />
-          <Text style={[styles.searchPlaceholder, { color: subTextColor }]}>Ask Meta AI or Search</Text>
+      <View style={[styles.searchWrapper, { backgroundColor: headerBgColor }]}>
+        <View style={[styles.searchContainer, { backgroundColor: searchBgColor, borderColor, borderWidth: 1 }]}>
+          <Search size={18} color={subTextColor} />
+          <Text style={[styles.searchPlaceholder, { color: subTextColor }]}>Search chats</Text>
         </View>
       </View>
 
@@ -313,22 +309,26 @@ export default function ChatsScreen() {
 
   if (isWideScreen) {
     return (
-      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: bgColor }}>
-        <View style={{ width: 400, borderRightWidth: 1, borderRightColor: borderColor }}>
+      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: isDark ? '#09090B' : '#FFFFFF' }}>
+        <View style={{ width: 350, backgroundColor: bgColor, borderRightWidth: 1, borderRightColor: borderColor }}>
           {listContent}
         </View>
-        <View style={{ flex: 1, backgroundColor: isDark ? '#222E35' : '#F0F2F5' }}>
+        <View style={{ flex: 1, backgroundColor: isDark ? '#111113' : '#F0F2F5' }}>
           {activeChatId ? (
             <ChatRoom conversationId={activeChatId} />
           ) : (
-            <View style={{ flex: 1, backgroundColor: isDark ? '#222E35' : '#F0F2F5', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ flex: 1, backgroundColor: isDark ? '#111113' : '#F0F2F5', justifyContent: 'center', alignItems: 'center' }}>
               {Platform.OS === 'web' ? (
-                <img src={((require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg') as any).uri) || require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg')} style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 16, objectFit: 'contain' }} alt="Logo" />
+                <div style={{ width: 80, height: 80, marginBottom: 16, overflow: 'hidden', opacity: 0.5, borderRadius: 16 }}>
+                  <img src={((require('../../Gemini_Generated_Image_g4ldb2g4ldb2g4ld-removebg-preview.png') as any).uri) || require('../../Gemini_Generated_Image_g4ldb2g4ldb2g4ld-removebg-preview.png')} style={{ width: '100%', height: '100%', objectFit: 'contain' }} alt="Logo" />
+                </div>
               ) : (
-                <Image source={require('../../WhatsApp Image 2026-06-25 at 1.01.58 AM.jpeg')} style={{ width: 80, height: 80, borderRadius: 16, marginBottom: 16 }} />
+                <View style={{ width: 80, height: 80, marginBottom: 16, overflow: 'hidden', opacity: 0.5, borderRadius: 16 }}>
+                  <Image source={require('../../Gemini_Generated_Image_g4ldb2g4ldb2g4ld-removebg-preview.png')} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
+                </View>
               )}
-              <Text style={{ color: textColor, fontSize: 24, fontWeight: '300' }}>ApexConnect for Web</Text>
-              <Text style={{ color: subTextColor, marginTop: 8 }}>Select a chat to start messaging</Text>
+              <Text style={{ color: textColor, fontSize: 24, fontWeight: '600', fontFamily: 'Inter, system-ui, sans-serif' }}>ApexConnect for Web</Text>
+              <Text style={{ color: subTextColor, marginTop: 8, fontFamily: 'Inter, system-ui, sans-serif' }}>Select a chat to start messaging</Text>
             </View>
           )}
         </View>
@@ -355,8 +355,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   headerIcons: {
     flexDirection: 'row',
@@ -373,13 +374,14 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 24,
+    borderRadius: 9999, // Pill shaped
     paddingHorizontal: 16,
-    height: 40,
+    height: 44, // Slightly taller
   },
   searchPlaceholder: {
     marginLeft: 12,
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   listContent: {
     flexGrow: 1,
@@ -431,13 +433,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   conversationName: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
     flex: 1,
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   timestamp: {
     fontSize: 12,
     marginLeft: 8,
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   conversationFooter: {
     flexDirection: 'row',
@@ -450,26 +454,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   lastMessage: {
-    fontSize: 15,
+    fontSize: 14,
     flex: 1,
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   typingText: {
-    fontSize: 15,
+    fontSize: 14,
     fontStyle: 'italic',
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   unreadBadge: {
     borderRadius: 12,
-    minWidth: 22,
-    height: 22,
+    minWidth: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
     marginLeft: 8,
   },
   unreadText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: 'white',
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   emptyContainer: {
     flex: 1,

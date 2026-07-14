@@ -1,5 +1,5 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { create } from 'zustand/index.js';
+import { persist, createJSONStorage } from 'zustand/middleware.js';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
@@ -92,12 +92,13 @@ export const useAuthStore = create<AuthState>()(
       generateMnemonic: () => generateMnemonic(12),
 
       createAccount: async (displayName: string, username?: string, password?: string) => {
+
         set({ isLoading: true, error: null });
         try {
           const mnemonic = generateMnemonic(12);
 
           const { user, token } = await api.post<{ user: User; token: string }>(
-            '/api/users',
+            '/api/users/signup',
             { display_name: displayName, username, password },
             false
           );

@@ -14,16 +14,11 @@ import {
   Image,
   Linking,
   Modal,
+  Animated as RNAnimated,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated';
+
 import {
   ArrowLeft,
   Send,
@@ -59,21 +54,19 @@ import { playSound } from '@/lib/sounds';
 const BOUNCE_DURATION = 150;
 
 function TypingDots() {
-  const dot1 = useSharedValue(0);
-  const dot2 = useSharedValue(0);
-  const dot3 = useSharedValue(0);
+  const dot1 = useRef(new RNAnimated.Value(0)).current;
+  const dot2 = useRef(new RNAnimated.Value(0)).current;
+  const dot3 = useRef(new RNAnimated.Value(0)).current;
 
   useEffect(() => {
-    const bounce = (dot: Animated.SharedValue<number>, delay: number) => {
+    const bounce = (dot: typeof RNAnimated.Value.prototype, delay: number) => {
       setTimeout(() => {
-        dot.value = withRepeat(
-          withSequence(
-            withTiming(-4, { duration: BOUNCE_DURATION }),
-            withTiming(0, { duration: BOUNCE_DURATION })
-          ),
-          -1,
-          false
-        );
+        RNAnimated.loop(
+          RNAnimated.sequence([
+            RNAnimated.timing(dot, { toValue: -4, duration: BOUNCE_DURATION, useNativeDriver: true }),
+            RNAnimated.timing(dot, { toValue: 0, duration: BOUNCE_DURATION, useNativeDriver: true })
+          ])
+        ).start();
       }, delay);
     };
 
@@ -82,15 +75,11 @@ function TypingDots() {
     bounce(dot3, 300);
   }, []);
 
-  const dot1Style = useAnimatedStyle(() => ({ transform: [{ translateY: dot1.value }] }));
-  const dot2Style = useAnimatedStyle(() => ({ transform: [{ translateY: dot2.value }] }));
-  const dot3Style = useAnimatedStyle(() => ({ transform: [{ translateY: dot3.value }] }));
-
   return (
     <View style={styles.typingContainer}>
-      <Animated.View style={[styles.typingDot, dot1Style]} />
-      <Animated.View style={[styles.typingDot, dot2Style]} />
-      <Animated.View style={[styles.typingDot, dot3Style]} />
+      <RNAnimated.View style={[styles.typingDot, { transform: [{ translateY: dot1 }] }]} />
+      <RNAnimated.View style={[styles.typingDot, { transform: [{ translateY: dot2 }] }]} />
+      <RNAnimated.View style={[styles.typingDot, { transform: [{ translateY: dot3 }] }]} />
     </View>
   );
 }
@@ -109,21 +98,21 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const { userId, theme } = useAuthStore();
   const isDark = theme === 'dark';
 
-  // WhatsApp Theme colors
-  const bgColor = isDark ? '#0B141A' : '#EFEAE2';
-  const headerBgColor = isDark ? '#202C33' : '#FFFFFF';
-  const inputBgColor = isDark ? '#202C33' : '#F0F2F5';
-  const inputFieldBgColor = isDark ? '#2A3942' : '#FFFFFF';
-  const textColor = isDark ? '#E9EDEF' : '#111B21';
-  const subTextColor = isDark ? '#8696A0' : '#54656F';
-  const borderColor = isDark ? '#222E35' : '#E9EDEF';
-  const replyBgColor = isDark ? '#202C33' : '#F0F2F5';
-  const editBgColor = isDark ? '#202C33' : '#FEF3C7';
+  // Premium Dark Mode Colors (Zinc & Emerald)
+  const bgColor = isDark ? '#111113' : '#EFEAE2'; // Chat background
+  const headerBgColor = isDark ? '#18181B' : '#FFFFFF';
+  const inputBgColor = isDark ? '#18181B' : '#F0F2F5';
+  const inputFieldBgColor = isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF';
+  const textColor = isDark ? '#FAFAFA' : '#111B21';
+  const subTextColor = isDark ? '#A1A1AA' : '#54656F';
+  const borderColor = isDark ? 'rgba(255,255,255,0.05)' : '#E9EDEF';
+  const replyBgColor = isDark ? 'rgba(255,255,255,0.03)' : '#F0F2F5';
+  const editBgColor = isDark ? 'rgba(16, 185, 129, 0.1)' : '#FEF3C7';
   
-  // WhatsApp Bubble Colors
-  const ownMsgBg = isDark ? '#005C4B' : '#E7FFDB';
-  const otherMsgBg = isDark ? '#202C33' : '#FFFFFF';
-  const brandColor = isDark ? '#00A884' : '#25D366';
+  // WhatsApp Bubble Colors -> Redesigned
+  const ownMsgBg = isDark ? '#10B981' : '#E7FFDB'; // Tech-forward emerald
+  const otherMsgBg = isDark ? '#18181B' : '#FFFFFF'; // Dark zinc
+  const brandColor = '#10B981';
   
   const doodleUrl = 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png';
 
@@ -522,17 +511,44 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const renderTypingIndicator = () => {
     if (typingUserIds.length === 0) return null;
 
+    let typingText = '';
+    if (typingUserIds.length === 1) {
+      const user = conversation?.participants.find(p => p.id === typingUserIds[0]);
+      typingText = `${user?.display_name || 'Someone'} is typing...`;
+    } else {
+      typingText = `${typingUserIds.length} people are typing...`;
+    }
+
     return (
-      <View style={styles.typingIndicator}>
-        <View style={[styles.messageBubble, styles.otherMessage, { backgroundColor: otherMsgBg }]}>
+      <View style={{
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        backgroundColor: 'transparent',
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}>
+        <View style={{
+          backgroundColor: otherMsgBg,
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+          borderRadius: 16,
+          borderBottomLeftRadius: 4,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 1,
+          elevation: 1,
+          borderWidth: 1,
+          borderColor: borderColor,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+        }}>
           <TypingDots />
+          <Text style={{ fontSize: 12, color: subTextColor, fontStyle: 'italic', fontWeight: '500' }}>
+            {typingText}
+          </Text>
         </View>
-        <Text style={styles.typingLabel}>
-          {typingUserIds.length === 1 && conversation?.participants[
-            conversation.participants.findIndex(p => p.id === typingUserIds[0])
-          ]?.display_name + ' is typing...'}
-          {typingUserIds.length > 1 && `${typingUserIds.length} people are typing...`}
-        </Text>
       </View>
     );
   };
@@ -640,9 +656,10 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           estimatedItemSize={60}
           contentContainerStyle={styles.messagesList}
           inverted
-          ListHeaderComponent={renderTypingIndicator}
         />
       </ImageBackground>
+
+      {renderTypingIndicator()}
 
       {replyingTo && (
         <View style={[styles.replyPreview, { backgroundColor: replyBgColor, borderTopColor: borderColor }]}>
@@ -829,13 +846,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: '600',
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   onlineText: {
     fontSize: 13,
     color: '#8696A0',
     marginTop: 1,
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   headerRightIcons: {
     flexDirection: 'row',
@@ -886,9 +905,11 @@ const styles = StyleSheet.create({
   messageBubble: {
     maxWidth: '80%',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderRadius: 12,
     marginBottom: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -897,11 +918,11 @@ const styles = StyleSheet.create({
   },
   ownMessage: {
     alignSelf: 'flex-end',
-    borderTopRightRadius: 4,
+    borderTopRightRadius: 2,
   },
   otherMessage: {
     alignSelf: 'flex-start',
-    borderTopLeftRadius: 4,
+    borderTopLeftRadius: 2,
   },
   messageContentWrapper: {
     flexDirection: 'row',
@@ -909,10 +930,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   messageText: {
-    fontSize: 16,
+    fontSize: 15,
     lineHeight: 22,
     paddingRight: 10,
     paddingBottom: 4,
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   messageFooter: {
     flexDirection: 'row',
@@ -1059,9 +1081,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
   attachButton: {
     width: 36,
@@ -1073,7 +1095,9 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    borderRadius: 22,
+    borderRadius: 9999, // Inset pill
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
     minHeight: 44,
     maxHeight: 120,
   },
@@ -1082,7 +1106,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
-    fontSize: 16,
+    fontSize: 15,
+    fontFamily: 'Inter, system-ui, sans-serif',
   },
   cameraButtonInside: {
     padding: 10,

@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { usePresenceStore } from '@/store/presenceStore';
+// usePresenceStore imported dynamically to avoid require cycle
 
 const WS_URL =
   (process.env.EXPO_PUBLIC_API_URL as string) || 'http://localhost:3001';
@@ -30,6 +30,7 @@ export const connectSocket = (): Socket => {
   });
 
   socket.on('user_presence', ({ userId, status }) => {
+    const { usePresenceStore } = require('@/store/presenceStore');
     usePresenceStore.getState().setPresence(userId, status);
   });
 

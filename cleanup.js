@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const dirsToDelete = ['.bolt', 'supabase', 'database'];
+const dirsToDelete = ['.bolt', 'supabase', 'database', 'babel.config.js', 'node_modules/react-native-reanimated', 'node_modules/react-native-worklets'];
 
 dirsToDelete.forEach(dir => {
   const fullPath = path.join(__dirname, dir);

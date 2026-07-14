@@ -1,5 +1,8 @@
-import { create } from 'zustand';
+import { create } from 'zustand/index.js';
 import { getSocket } from '@/lib/ws';
+import { Platform, Alert } from 'react-native';
+import { Camera } from 'expo-camera';
+import { Audio } from 'expo-av';
 
 export interface CallState {
   isReceivingCall: boolean;
@@ -21,9 +24,35 @@ export interface CallState {
   initCallListeners: () => void;
 }
 
-let peerConnection: RTCPeerConnection | null = null;
-let mediaRecorder: MediaRecorder | null = null;
+let peerConnection: any | null = null;
+let mediaRecorder: any | null = null;
 let recordedChunks: Blob[] = [];
+
+// Polyfill WebRTC for Native
+let RTCConnection: any;
+let RTCSessionDesc: any;
+let RTCIceCand: any;
+let mediaDevs: any;
+let MediaStreamClass: any;
+
+if (Platform.OS === 'web') {
+  RTCConnection = window.RTCPeerConnection;
+  RTCSessionDesc = window.RTCSessionDescription;
+  RTCIceCand = window.RTCIceCandidate;
+  mediaDevs = navigator.mediaDevices;
+  MediaStreamClass = window.MediaStream;
+} else {
+  try {
+    const webrtc = require('react-native-webrtc');
+    RTCConnection = webrtc.RTCPeerConnection;
+    RTCSessionDesc = webrtc.RTCSessionDescription;
+    RTCIceCand = webrtc.RTCIceCandidate;
+    mediaDevs = webrtc.mediaDevices;
+    MediaStreamClass = webrtc.MediaStream;
+  } catch (e) {
+    console.warn('react-native-webrtc is not installed. Native calls will fail.');
+  }
+}
 
 const configuration = {
   iceServers: [
@@ -60,8 +89,12 @@ export const useCallStore = create<CallState>((set, get) => ({
       });
 
       // Prepare peer connection
-      peerConnection = new RTCPeerConnection(configuration);
-      peerConnection.onicecandidate = (event) => {
+      if (!RTCConnection) {
+         console.warn('WebRTC not supported or react-native-webrtc missing');
+         return;
+      }
+      peerConnection = new RTCConnection(configuration);
+      peerConnection.onicecandidate = (event: any) => {
         if (event.candidate) {
           socket.emit('ice_candidate', {
             conversationId: data.conversationId,
@@ -71,24 +104,24 @@ export const useCallStore = create<CallState>((set, get) => ({
         }
       };
 
-      peerConnection.ontrack = (event) => {
+      peerConnection.ontrack = (event: any) => {
         set({ remoteStream: event.streams[0] });
       };
 
-      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+      await peerConnection.setRemoteDescription(new RTCSessionDesc(data.offer));
     });
 
     socket.on('call_answer', async (data) => {
       if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        await peerConnection.setRemoteDescription(new RTCSessionDesc(data.answer));
         set({ isActiveCall: true, callStartTime: Date.now() });
         
         const remoteStream = get().remoteStream;
-        if (remoteStream && !mediaRecorder) {
+        if (Platform.OS === 'web' && remoteStream && !mediaRecorder && window.MediaRecorder) {
           try {
             const audioTracks = remoteStream.getAudioTracks();
             if (audioTracks.length > 0) {
-              const audioStream = new MediaStream([audioTracks[0]]);
+              const audioStream = new MediaStreamClass([audioTracks[0]]);
               mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
               mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) recordedChunks.push(e.data);
@@ -105,7 +138,7 @@ export const useCallStore = create<CallState>((set, get) => ({
     socket.on('ice_candidate', async (data) => {
       if (peerConnection) {
         try {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+          await peerConnection.addIceCandidate(new RTCIceCand(data.candidate));
         } catch (e) {
           console.error('Error adding received ice candidate', e);
         }
@@ -119,20 +152,37 @@ export const useCallStore = create<CallState>((set, get) => ({
 
   initiateCall: async (conversationId: string, calleeId: string, isVideo: boolean) => {
     try {
+      if (Platform.OS !== 'web') {
+        const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
+        const { status: audioStatus } = await Audio.requestPermissionsAsync();
+        if (cameraStatus !== 'granted' || audioStatus !== 'granted') {
+          Alert.alert('Permission Denied', 'Camera and Microphone permissions are required to make calls.');
+          get().endCall();
+          return;
+        }
+      }
+
+      if (!mediaDevs || !RTCConnection) {
+        Alert.alert('Error', 'WebRTC is not supported on this device. Install react-native-webrtc.');
+        get().endCall();
+        return;
+      }
+
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream = await mediaDevs.getUserMedia({
           video: isVideo,
           audio: true,
         });
       } catch (mediaErr: any) {
-        window.alert(`Could not access camera/microphone: ${mediaErr.message}. Ensure no other app is using them.`);
+        const msg = `Could not access camera/microphone: ${mediaErr.message}. Ensure no other app is using them.`;
+        Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Media Error', msg);
         get().endCall();
         return;
       }
       set({ localStream: stream, isActiveCall: true, conversationId, calleeId, isVideoCall: isVideo });
 
-      peerConnection = new RTCPeerConnection(configuration);
+      peerConnection = new RTCConnection(configuration);
       stream.getTracks().forEach((track) => {
         peerConnection?.addTrack(track, stream);
       });
@@ -176,20 +226,37 @@ export const useCallStore = create<CallState>((set, get) => ({
     if (!conversationId || !peerConnection) return;
 
     try {
+      if (Platform.OS !== 'web') {
+        const { status: cameraStatus } = await Camera.requestCameraPermissionsAsync();
+        const { status: audioStatus } = await Audio.requestPermissionsAsync();
+        if (cameraStatus !== 'granted' || audioStatus !== 'granted') {
+          Alert.alert('Permission Denied', 'Camera and Microphone permissions are required to accept calls.');
+          get().endCall();
+          return;
+        }
+      }
+
+      if (!mediaDevs) {
+        Alert.alert('Error', 'WebRTC is not supported on this device.');
+        get().endCall();
+        return;
+      }
+
       let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream = await mediaDevs.getUserMedia({
           video: isVideoCall,
           audio: true,
         });
       } catch (mediaErr: any) {
-        window.alert(`Could not access camera/microphone: ${mediaErr.message}. Ensure no other app is using them.`);
+        const msg = `Could not access camera/microphone: ${mediaErr.message}. Ensure no other app is using them.`;
+        Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Media Error', msg);
         get().endCall();
         return;
       }
       set({ localStream: stream, isReceivingCall: false, isActiveCall: true, callStartTime: Date.now() });
 
-      stream.getTracks().forEach((track) => {
+      stream.getTracks().forEach((track: any) => {
         peerConnection?.addTrack(track, stream);
       });
 
