@@ -8,8 +8,10 @@ import {
   RefreshControl,
   Platform,
   useWindowDimensions,
+  useColorScheme,
 } from 'react-native';
 import { Redirect, useFocusEffect, useRouter } from 'expo-router';
+import { getMediaUrl } from '@/lib/media';
 import { FlashList } from '@shopify/flash-list';
 import { MessageCircle, Search, Circle, Camera, MoreVertical, CheckCheck, Check } from 'lucide-react-native';
 import { useMessagesStore } from '@/store/messagesStore';
@@ -23,7 +25,8 @@ import { ChatRoom } from '../chat/[id]';
 export default function ChatsScreen() {
   const router = useRouter();
   const { userId, user, theme } = useAuthStore();
-  const isDark = theme === 'dark';
+  const systemTheme = useColorScheme() ?? 'light';
+  const isDark = (theme === 'system' ? systemTheme : theme) === 'dark';
 
   // Premium Dark Mode Colors
   const bgColor = isDark ? '#18181B' : '#FFFFFF';
@@ -129,7 +132,8 @@ export default function ChatsScreen() {
   const getConversationAvatar = (conv: ConversationWithDetails) => {
     if (conv.type === 'direct') {
       const other = conv.participants.find(p => p.id !== userId);
-      if (other?.avatar_url) return { uri: other.avatar_url };
+      const url = getMediaUrl(other?.avatar_url);
+      if (url) return { uri: url };
     }
     return null;
   };

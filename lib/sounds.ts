@@ -1,19 +1,24 @@
 import { Audio } from 'expo-av';
-import { Platform } from 'react-native';
+import { Platform, LogBox } from 'react-native';
 
-// Standard Google Action royalty-free sounds to mimic messaging app tones
-const SOUND_URLS = {
-  send: 'https://actions.google.com/sounds/v1/water/water_drop.ogg',
-  receive: 'https://actions.google.com/sounds/v1/notifications/positive_notification.ogg',
-  error: 'https://actions.google.com/sounds/v1/alarms/error_beep.ogg',
+// Suppress the deprecation warning for expo-av to keep logs clean
+LogBox.ignoreLogs(['Expo AV has been deprecated']);
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  if (args[0]?.includes?.('Expo AV has been deprecated')) return;
+  originalWarn(...args);
 };
 
-// Cache for loaded sounds
+const SOUND_FILES = {
+  send: require('../assets/sounds/send.wav'),
+  receive: require('../assets/sounds/receive.wav'),
+  error: require('../assets/sounds/error.wav'),
+};
+
 const sounds: Record<string, Audio.Sound> = {};
 
 export async function initSounds() {
   try {
-    // Only initialize if we're on a platform that supports expo-av easily, though Web should work too
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
       staysActiveInBackground: true,
@@ -24,22 +29,16 @@ export async function initSounds() {
   }
 }
 
-export async function playSound(type: keyof typeof SOUND_URLS) {
+export async function playSound(type: keyof typeof SOUND_FILES) {
   try {
-    // Web browsers often block audio until user interaction
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const audio = new window.Audio(SOUND_URLS[type]);
-      audio.volume = 0.5;
-      await audio.play().catch(e => console.warn('Web audio blocked:', e));
-      return;
-    }
-
     if (!sounds[type]) {
-      const { sound } = await Audio.Sound.createAsync({ uri: SOUND_URLS[type] });
+      const { sound } = await Audio.Sound.createAsync(SOUND_FILES[type]);
       sounds[type] = sound;
     }
     
-    await sounds[type].replayAsync();
+    // Stop if already playing, then play from start
+    await sounds[type].stopAsync();
+    await sounds[type].playAsync();
   } catch (error) {
     console.warn(`Failed to play sound ${type}:`, error);
   }

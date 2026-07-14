@@ -23,10 +23,14 @@ export const connectSocket = (): Socket => {
     
     // Register presence automatically if we have a user
     const { useAuthStore } = require('@/store/authStore');
+    const { useMessagesStore } = require('@/store/messagesStore');
     const userId = useAuthStore.getState().userId;
     if (userId) {
       socket?.emit('register_user', userId);
     }
+    
+    // Initialize global message listeners
+    useMessagesStore.getState().initRealtimeListeners();
   });
 
   socket.on('user_presence', ({ userId, status }) => {

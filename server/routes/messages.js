@@ -47,8 +47,54 @@ module.exports = (io) => {
 
       const fullMessage = { ...message, sender, status: 'sent' };
 
-      // Broadcast to all Socket.io clients in this conversation room
-      io.to(`conversation:${conversation_id}`).emit('new_message', fullMessage);
+      // Fetch all participants to broadcast to their user rooms
+      const { rows: participants } = await db.query(
+        'SELECT user_id FROM conversation_participants WHERE conversation_id = $1',
+        [conversation_id]
+      );
+
+      // Broadcast to all participants (sends exactly 1 event per socket)
+      let broadcast = io;
+      
+      const pushNotifications = [];
+      
+      for (const p of participants) {
+        broadcast = broadcast.to(`user:${p.user_id}`);
+        
+        // Don't send push notification to the sender
+        if (p.user_id !== userId) {
+          // Fetch user's push token
+          const { rows: [recipient] } = await db.query('SELECT push_token FROM users WHERE id = $1', [p.user_id]);
+          if (recipient && recipient.push_token) {
+            pushNotifications.push({
+              to: recipient.push_token,
+              title: sender.display_name || sender.username,
+              body: content || (message_type === 'image' ? '📷 Photo' : message_type === 'video' ? '🎥 Video' : 'New message'),
+              data: { conversation_id },
+              sound: 'default'
+            });
+          }
+        }
+      }
+      
+      broadcast.emit('new_message', fullMessage);
+      
+      // Send batch push notifications via Expo API
+      if (pushNotifications.length > 0) {
+        try {
+          fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Accept-encoding': 'gzip, deflate',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(pushNotifications),
+          }).catch(err => console.error('Push notification network error:', err));
+        } catch (e) {
+          console.error('Error sending push notification:', e);
+        }
+      }
 
       res.json(fullMessage);
     } catch (err) {

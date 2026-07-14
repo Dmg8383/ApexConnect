@@ -1,13 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { View, ActivityIndicator, Platform, useColorScheme } from 'react-native';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { useAuthStore } from '@/store/authStore';
 import { useCallStore } from '@/store/callStore';
 import { CallOverlay } from '@/components/CallOverlay';
 import { useScreenSecurity } from '@/hooks/useScreenSecurity';
 import { initSounds } from '@/lib/sounds';
+import { registerForPushNotificationsAsync } from '@/lib/notifications';
+import Constants from 'expo-constants';
+const isExpoGo = Constants.appOwnership === 'expo';
+let Notifications: any = null;
+if (!isExpoGo && Platform.OS !== 'web') {
+  Notifications = require('expo-notifications');
+}
+import { api } from '@/lib/api';
 
 export default function RootLayout() {
   useFrameworkReady();
@@ -35,9 +43,69 @@ export default function RootLayout() {
     });
   }, []);
 
+  // Handle push notification registration and interactions
+  useEffect(() => {
+    const checkPush = async () => {
+      if (useAuthStore.getState().isAuthenticated && Notifications) {
+        try {
+          const token = await registerForPushNotificationsAsync();
+          if (token) {
+            await api.put('/api/users/push-token', { push_token: token });
+          }
+        } catch (e) {
+          console.warn('Push registration warning:', e);
+        }
+      }
+    };
+    
+    checkPush();
+    
+    const handleNotificationTap = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data;
+      
+      // If the user taps a call notification, trigger the call overlay
+      if (data && data.type === 'call_offer') {
+        const callStore = useCallStore.getState();
+        
+        // Only set it if we aren't already in a call
+        if (!callStore.isActiveCall) {
+          useCallStore.setState({
+            isReceivingCall: true,
+            callerId: data.callerId,
+            conversationId: data.conversationId,
+            isVideoCall: data.isVideo,
+          });
+        }
+      }
+    };
+    
+    // Check if the app was opened from a cold start via a notification tap
+    if (Platform.OS !== 'web' && Notifications) {
+      Notifications.getLastNotificationResponseAsync().then((response: any) => {
+        if (response) {
+          handleNotificationTap(response);
+        }
+      }).catch((e: any) => console.log('No notification response', e));
+    }
+
+    let responseSubscription: any = null;
+    if (Notifications) {
+      responseSubscription = Notifications.addNotificationResponseReceivedListener(handleNotificationTap);
+    }
+    
+    return () => {
+      if (responseSubscription) {
+        responseSubscription.remove();
+      }
+    };
+  }, [useAuthStore.getState().isAuthenticated]);
+
+  const systemTheme = useColorScheme() ?? 'light';
+  const isDark = (theme === 'system' ? systemTheme : theme) === 'dark';
+
   if (!isReady) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme === 'dark' ? '#111827' : '#F9FAFB' }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: isDark ? '#111827' : '#F9FAFB' }}>
         <ActivityIndicator size="large" color="#3B82F6" />
       </View>
     );
@@ -75,7 +143,7 @@ export default function RootLayout() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <CallOverlay />
-      <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={isDark ? 'light' : 'dark'} />
     </>
   );
 }

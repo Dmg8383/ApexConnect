@@ -13,7 +13,12 @@ module.exports = (io) => {
         `SELECT
            c.*,
            (
-             SELECT json_agg(u.*)
+             SELECT json_agg(jsonb_build_object(
+               'id', u.id,
+               'display_name', u.display_name,
+               'avatar_url', u.avatar_url,
+               'role', cp2.role
+             ))
              FROM users u
              JOIN conversation_participants cp2 ON cp2.user_id = u.id
              WHERE cp2.conversation_id = c.id
@@ -89,8 +94,8 @@ module.exports = (io) => {
         );
 
         await client.query(
-          `INSERT INTO conversation_participants (conversation_id, user_id)
-           VALUES ($1, $2), ($1, $3)`,
+          `INSERT INTO conversation_participants (conversation_id, user_id, role)
+           VALUES ($1, $2, 'member'), ($1, $3, 'member')`,
           [conversation.id, userId, otherUserId]
         );
 
@@ -104,6 +109,209 @@ module.exports = (io) => {
       }
     } catch (err) {
       console.error('Create conversation error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/conversations/group - Create a group conversation
+  router.post('/group', auth, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const { name, participants } = req.body;
+
+      if (!name || !participants || !Array.isArray(participants) || participants.length === 0) {
+        return res.status(400).json({ error: 'name and participants array are required' });
+      }
+
+      // Ensure creator is in the participants list
+      const allParticipants = [...new Set([...participants, userId])];
+
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        const { rows: [conversation] } = await client.query(
+          `INSERT INTO conversations (type, name, created_by) VALUES ('group', $1, $2) RETURNING *`,
+          [name, userId]
+        );
+
+        // Add participants: creator is admin, others are members
+        for (const pId of allParticipants) {
+          const role = pId === userId ? 'admin' : 'member';
+          await client.query(
+            `INSERT INTO conversation_participants (conversation_id, user_id, role) VALUES ($1, $2, $3)`,
+            [conversation.id, pId, role]
+          );
+        }
+
+        await client.query('COMMIT');
+        res.json(conversation);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('Create group error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // POST /api/conversations/:id/participants - Add participants to group
+  router.post('/:id/participants', auth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.userId;
+      const { participants } = req.body;
+
+      // Check if user is admin
+      const { rows: participation } = await db.query(
+        `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2`,
+        [id, userId]
+      );
+
+      if (participation.length === 0 || participation[0].role !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can add participants' });
+      }
+
+      const client = await db.pool.connect();
+      try {
+        await client.query('BEGIN');
+        
+        for (const pId of participants) {
+          await client.query(
+            `INSERT INTO conversation_participants (conversation_id, user_id, role) 
+             VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING`,
+            [id, pId]
+          );
+        }
+
+        await client.query('COMMIT');
+
+        // Fetch adder name
+        const { rows: adderUsers } = await db.query('SELECT display_name, username FROM users WHERE id = $1', [userId]);
+        const adderName = adderUsers[0]?.display_name || adderUsers[0]?.username || 'Admin';
+
+        // Fetch added names
+        const { rows: addedUsers } = await db.query('SELECT display_name, username FROM users WHERE id = ANY($1)', [participants]);
+        const addedNames = addedUsers.map(u => u.display_name || u.username).join(', ');
+
+        const systemMsgContent = `[SYSTEM] ${adderName} added ${addedNames}.`;
+
+        const { rows: newMsg } = await db.query(
+          `INSERT INTO messages (conversation_id, sender_id, content, message_type)
+           VALUES ($1, $2, $3, 'text') RETURNING *`,
+          [id, userId, systemMsgContent]
+        );
+
+        const io = req.app.get('io');
+        if (io) {
+          const fullMessage = {
+            ...newMsg[0],
+            sender: adderUsers[0]
+          };
+          io.to(`conversation:${id}`).emit('new_message', fullMessage);
+        }
+
+        res.json({ success: true });
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('Add participants error:', err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // PATCH /api/conversations/:id/participants/:targetId/role - Promote/Demote
+  router.patch('/:id/participants/:targetId/role', auth, async (req, res) => {
+    try {
+      const { id, targetId } = req.params;
+      const userId = req.userId;
+      const { role } = req.body;
+
+      if (!['admin', 'member'].includes(role)) {
+        return res.status(400).json({ error: 'Invalid role' });
+      }
+
+      // Check if user is admin
+      const { rows: participation } = await db.query(
+        `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2`,
+        [id, userId]
+      );
+
+      if (participation.length === 0 || participation[0].role !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can change roles' });
+      }
+
+      await db.query(
+        `UPDATE conversation_participants SET role = $1 WHERE conversation_id = $2 AND user_id = $3`,
+        [role, id, targetId]
+      );
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // DELETE /api/conversations/:id/participants/:targetId - Remove/Leave group
+  router.delete('/:id/participants/:targetId', auth, async (req, res) => {
+    try {
+      const { id, targetId } = req.params;
+      const userId = req.userId;
+
+      if (userId !== targetId) {
+        // Checking if remover is admin
+        const { rows: participation } = await db.query(
+          `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2`,
+          [id, userId]
+        );
+
+        if (participation.length === 0 || participation[0].role !== 'admin') {
+          return res.status(403).json({ error: 'Only admins can remove other participants' });
+        }
+      }
+
+      // Get user names for the system message
+      const { rows: targetUsers } = await db.query('SELECT display_name, username FROM users WHERE id = $1', [targetId]);
+      const targetName = targetUsers[0]?.display_name || targetUsers[0]?.username || 'A user';
+
+      await db.query(
+        `DELETE FROM conversation_participants WHERE conversation_id = $1 AND user_id = $2`,
+        [id, targetId]
+      );
+
+      let systemMsgContent = `[SYSTEM] ${targetName} left the group.`;
+      
+      if (userId !== targetId) {
+        const { rows: removerUsers } = await db.query('SELECT display_name, username FROM users WHERE id = $1', [userId]);
+        const removerName = removerUsers[0]?.display_name || removerUsers[0]?.username || 'Admin';
+        systemMsgContent = `[SYSTEM] ${removerName} removed ${targetName}.`;
+      }
+
+      // Insert system message
+      const { rows: newMsg } = await db.query(
+        `INSERT INTO messages (conversation_id, sender_id, content, message_type)
+         VALUES ($1, $2, $3, 'text') RETURNING *`,
+        [id, userId, systemMsgContent]
+      );
+
+      const io = req.app.get('io');
+      if (io) {
+        const fullMessage = {
+          ...newMsg[0],
+          sender: targetUsers[0] // or remover's info, doesn't strictly matter for SYSTEM messages
+        };
+        io.to(`conversation:${id}`).emit('new_message', fullMessage);
+      }
+
+      res.json({ success: true });
+    } catch (err) {
       res.status(500).json({ error: err.message });
     }
   });
@@ -160,3 +368,4 @@ module.exports = (io) => {
 
   return router;
 };
+

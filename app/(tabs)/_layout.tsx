@@ -1,13 +1,16 @@
 import { Tabs, usePathname, useRouter } from 'expo-router';
 import { MessageCircle, Users, Settings, Shield, User, ChevronLeft, ChevronRight, Phone } from 'lucide-react-native';
+import { getMediaUrl } from '@/lib/media';
 import { useAuthStore } from '@/store/authStore';
 import { useState } from 'react';
 
-import { Platform, View, TouchableOpacity, Image, Text } from 'react-native';
+import { Platform, View, TouchableOpacity, Image, Text, useColorScheme, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function WebSidebarStandalone() {
   const { user, theme } = useAuthStore();
-  const isDark = theme === 'dark';
+  const systemTheme = useColorScheme() ?? 'light';
+  const isDark = (theme === 'system' ? systemTheme : theme) === 'dark';
   
   // Premium Dark Mode Colors
   const bgColor = isDark ? '#09090B' : '#F0F2F5';
@@ -99,9 +102,9 @@ function WebSidebarStandalone() {
         <TouchableOpacity style={{ alignItems: 'center' }} onPress={() => router.navigate('/settings')}>
           {user?.avatar_url ? (
             Platform.OS === 'web' ? (
-              <img src={user.avatar_url} style={{ width: 44, height: 44, borderRadius: 22, objectFit: 'cover' }} alt="Avatar" />
+              <img src={getMediaUrl(user.avatar_url)!} style={{ width: 44, height: 44, borderRadius: 22, objectFit: 'cover' }} alt="Avatar" />
             ) : (
-              <Image source={{ uri: user.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22 }} />
+              <Image source={{ uri: getMediaUrl(user.avatar_url)! }} style={{ width: 44, height: 44, borderRadius: 22 }} />
             )
           ) : (
             <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: isDark ? '#27272A' : '#E5E7EB', alignItems: 'center', justifyContent: 'center' }}>
@@ -114,9 +117,14 @@ function WebSidebarStandalone() {
   );
 }
 
+
 export default function TabLayout() {
   const { user, theme } = useAuthStore();
-  const isDark = theme === 'dark';
+  const systemTheme = useColorScheme() ?? 'light';
+  const isDark = (theme === 'system' ? systemTheme : theme) === 'dark';
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isWideScreen = Platform.OS === 'web' && width > 768;
 
   const tabsComponent = (
     <Tabs
@@ -124,11 +132,12 @@ export default function TabLayout() {
         headerShown: false,
         tabBarActiveTintColor: isDark ? '#00A884' : '#25D366',
         tabBarInactiveTintColor: isDark ? '#8696A0' : '#54656F',
-        tabBarStyle: Platform.OS === 'web' ? { display: 'none' } : {
+        tabBarStyle: isWideScreen ? { display: 'none' } : {
           backgroundColor: isDark ? '#111B21' : '#FFFFFF',
           borderTopColor: isDark ? '#202C33' : '#E9EDEF',
           paddingTop: 8,
-          height: 80,
+          paddingBottom: Math.max(insets.bottom, 8),
+          height: 60 + Math.max(insets.bottom, 8),
           elevation: 0,
           shadowOpacity: 0,
         },
@@ -138,7 +147,7 @@ export default function TabLayout() {
           marginTop: 4,
         },
       }}
-      tabBar={Platform.OS === 'web' ? () => null : undefined}
+      tabBar={isWideScreen ? () => null : undefined}
     >
       <Tabs.Screen 
         name="index" 
@@ -182,7 +191,7 @@ export default function TabLayout() {
     </Tabs>
   );
 
-  if (Platform.OS === 'web') {
+  if (isWideScreen) {
     return (
       <View style={{ flex: 1, flexDirection: 'row' }}>
         <WebSidebarStandalone />

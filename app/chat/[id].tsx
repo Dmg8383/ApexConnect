@@ -15,9 +15,15 @@ import {
   Linking,
   Modal,
   Animated as RNAnimated,
+  Keyboard,
+  KeyboardEvent,
+  useColorScheme,
 } from 'react-native';
+import * as SystemUI from 'expo-system-ui';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { FlashList } from '@shopify/flash-list';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getMediaUrl } from '@/lib/media';
 
 import {
   ArrowLeft,
@@ -39,6 +45,7 @@ import {
   Music,
   Download,
   X,
+  Smile,
 } from 'lucide-react-native';
 import { useMessagesStore } from '@/store/messagesStore';
 import { useAuthStore } from '@/store/authStore';
@@ -96,23 +103,25 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   };
 
   const { userId, theme } = useAuthStore();
-  const isDark = theme === 'dark';
+  const systemTheme = useColorScheme() ?? 'light';
+  const isDark = (theme === 'system' ? systemTheme : theme) === 'dark';
 
-  // Premium Dark Mode Colors (Zinc & Emerald)
-  const bgColor = isDark ? '#111113' : '#EFEAE2'; // Chat background
-  const headerBgColor = isDark ? '#18181B' : '#FFFFFF';
-  const inputBgColor = isDark ? '#18181B' : '#F0F2F5';
-  const inputFieldBgColor = isDark ? 'rgba(255,255,255,0.05)' : '#FFFFFF';
-  const textColor = isDark ? '#FAFAFA' : '#111B21';
-  const subTextColor = isDark ? '#A1A1AA' : '#54656F';
-  const borderColor = isDark ? 'rgba(255,255,255,0.05)' : '#E9EDEF';
-  const replyBgColor = isDark ? 'rgba(255,255,255,0.03)' : '#F0F2F5';
-  const editBgColor = isDark ? 'rgba(16, 185, 129, 0.1)' : '#FEF3C7';
+  // Authentic WhatsApp Colors
+  const bgColor = isDark ? '#0B141A' : '#EFEAE2'; // Chat background
+  const headerBgColor = isDark ? '#1F2C34' : '#075E54';
+  const headerTextColor = isDark ? '#E9EDEF' : '#FFFFFF';
+  const inputBgColor = 'transparent'; // Footer background is transparent over doodle
+  const inputFieldBgColor = isDark ? '#2A3942' : '#FFFFFF';
+  const textColor = isDark ? '#E9EDEF' : '#111B21';
+  const subTextColor = isDark ? '#8696A0' : '#667781';
+  const borderColor = isDark ? '#202C33' : '#E9EDEF';
+  const replyBgColor = isDark ? '#1D282F' : '#F0F2F5';
+  const editBgColor = isDark ? 'rgba(0, 168, 132, 0.1)' : '#FEF3C7';
   
-  // WhatsApp Bubble Colors -> Redesigned
-  const ownMsgBg = isDark ? '#10B981' : '#E7FFDB'; // Tech-forward emerald
-  const otherMsgBg = isDark ? '#18181B' : '#FFFFFF'; // Dark zinc
-  const brandColor = '#10B981';
+  // WhatsApp Bubble Colors
+  const ownMsgBg = isDark ? '#005C4B' : '#D9FDD3';
+  const otherMsgBg = isDark ? '#202C33' : '#FFFFFF';
+  const brandColor = '#00A884';
   
   const doodleUrl = 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png';
 
@@ -131,6 +140,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     clearConversation,
   } = useMessagesStore();
   
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      SystemUI.setBackgroundColorAsync(bgColor);
+    }
+  }, [bgColor]);
+  
   const presence = usePresenceStore((state) => state.presence);
   const fetchPresence = usePresenceStore((state) => state.fetchPresence);
 
@@ -145,21 +160,52 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   const conversation = conversations.find(c => c.id === conversationId) as ConversationWithDetails | undefined;
   const conversationMessages = messages[conversationId] || [];
   const typingUserIds = typingUsers[conversationId] || [];
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e: KeyboardEvent) => {
+        setKeyboardVisible(true);
+        // Scroll to end when keyboard appears
+        if (listRef.current && conversationMessages.length > 0) {
+          setTimeout(() => {
+            listRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidHideListener.remove();
+      keyboardDidShowListener.remove();
+    };
+  }, [conversationMessages.length]);
+
+  useEffect(() => {
     if (conversationId) {
       loadMessages(conversationId);
       markAsRead(conversationId);
+      useMessagesStore.getState().setActiveConversationId(conversationId);
 
       if (userId) {
         subscribeToConversation(conversationId);
       }
 
       return () => {
+        useMessagesStore.getState().setActiveConversationId(null);
         unsubscribeFromConversation(conversationId);
       };
     }
@@ -172,11 +218,15 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     }
   }, [conversation?.id, userId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      markAsRead(conversationId);
-    }, [conversationId])
-  );
+  // Instantly mark messages as read if they arrive while the chat is actively open
+  useEffect(() => {
+    if (conversationId && conversationMessages.length > 0) {
+      const hasUnread = conversationMessages.some(m => m.sender_id !== userId && m.status !== 'read');
+      if (hasUnread) {
+        markAsRead(conversationId);
+      }
+    }
+  }, [conversationMessages.length, conversationId, userId]);
 
   const handleTyping = () => {
     setTyping(conversationId, true);
@@ -414,6 +464,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
   };
 
   const renderMessage = ({ item }: { item: MessageWithStatus }) => {
+    if (item.content?.startsWith('[SYSTEM]')) {
+      return (
+        <View style={styles.systemMessageContainer}>
+          <View style={[styles.systemMessageBubble, { backgroundColor: isDark ? '#1F2937' : '#F3F4F6' }]}>
+            <Text style={[styles.systemMessageText, { color: isDark ? '#9CA3AF' : '#6B7280' }]}>
+              {item.content.replace('[SYSTEM]', '').trim()}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
     const isOwn = item.sender_id === userId;
     const showStatus = isOwn && item.status;
 
@@ -426,6 +488,11 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         onLongPress={() => handleLongPress(item)}
         activeOpacity={0.8}
       >
+        {!isOwn && conversation?.type === 'group' && item.sender && (
+          <Text style={[styles.senderName, { color: brandColor }]}>
+            {item.sender.display_name}
+          </Text>
+        )}
         {item.reply_to && (
           <View style={styles.replyContainer}>
             <View style={styles.replyLine} />
@@ -436,13 +503,13 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         )}
 
         {item.message_type === 'image' && item.media_url && (
-          <TouchableOpacity onPress={() => setViewingImage(item.media_url!)} activeOpacity={0.9}>
-            <Image source={{ uri: item.media_url }} style={styles.messageImage} />
+          <TouchableOpacity onPress={() => setViewingImage(getMediaUrl(item.media_url)!)} activeOpacity={0.9}>
+            <Image source={{ uri: getMediaUrl(item.media_url)! }} style={styles.messageImage} />
           </TouchableOpacity>
         )}
         
         {item.message_type === 'video' && item.media_url && (
-          <TouchableOpacity onPress={() => handleDownload(item.media_url!)} activeOpacity={0.9}>
+          <TouchableOpacity onPress={() => handleDownload(getMediaUrl(item.media_url)!)} activeOpacity={0.9}>
             <View style={[styles.messageImage, { backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }]}>
               <Video size={48} color="white" />
             </View>
@@ -457,7 +524,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             <View>
               <Text style={{ color: textColor, fontWeight: '500' }}>Audio Message</Text>
             </View>
-            <TouchableOpacity onPress={() => handleDownload(item.media_url!)} style={{ marginLeft: 'auto', paddingLeft: 12 }}>
+            <TouchableOpacity onPress={() => handleDownload(getMediaUrl(item.media_url)!)} style={{ marginLeft: 'auto', paddingLeft: 12 }}>
                <Download size={20} color={brandColor} />
             </TouchableOpacity>
           </View>
@@ -467,7 +534,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 4, backgroundColor: isDark ? '#2A3942' : '#F3F4F6', padding: 8, borderRadius: 8 }}>
             <FileText size={32} color={brandColor} style={{ marginRight: 8 }} />
             <Text style={{ color: textColor, flexShrink: 1, marginRight: 8, maxWidth: 150 }} numberOfLines={1}>{item.content || 'Document'}</Text>
-            <TouchableOpacity onPress={() => handleDownload(item.media_url!)}>
+            <TouchableOpacity onPress={() => handleDownload(getMediaUrl(item.media_url)!)}>
               <Download size={20} color={subTextColor} />
             </TouchableOpacity>
           </View>
@@ -553,11 +620,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
     );
   };
 
+  const insets = useSafeAreaInsets();
+
+  const KeyboardWrapper = Platform.OS !== 'web' ? KeyboardAvoidingView : View;
+  const keyboardProps = Platform.OS !== 'web' ? { 
+    behavior: 'padding' as const,
+    keyboardVerticalOffset: 0
+  } : {};
+
   return (
-    <KeyboardAvoidingView
+    <KeyboardWrapper
       style={[styles.container, { backgroundColor: bgColor, flexDirection: Platform.OS === 'web' ? 'row' : 'column' }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      {...keyboardProps}
     >
       <View style={{ flex: 1, position: 'relative' }}>
         <View style={[styles.header, { backgroundColor: headerBgColor, borderBottomColor: borderColor }]}>
@@ -565,15 +639,36 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           style={styles.backButton}
           onPress={handleBack}
         >
-          <ArrowLeft size={24} color={textColor} />
+          <ArrowLeft size={24} color={headerTextColor} />
         </TouchableOpacity>
 
-        <View style={styles.headerInfo}>
-          <View style={styles.avatarPlaceholderHeader}>
-            <Text style={styles.avatarPlaceholderText}>{getConversationName().charAt(0).toUpperCase()}</Text>
-          </View>
+        <TouchableOpacity 
+          style={styles.headerInfo} 
+          onPress={() => router.push({ pathname: '/chat/info', params: { id: conversationId } })}
+          activeOpacity={0.7}
+        >
+          {(() => {
+            let avatarUrl = null;
+            if (conversation?.type === 'direct') {
+              const other = conversation.participants.find(p => p.id !== userId);
+              avatarUrl = getMediaUrl(other?.avatar_url);
+            }
+            if (avatarUrl) {
+              return (
+                <Image 
+                  source={{ uri: avatarUrl }} 
+                  style={{ width: 36, height: 36, borderRadius: 18, marginRight: 10 }} 
+                />
+              );
+            }
+            return (
+              <View style={styles.avatarPlaceholderHeader}>
+                <Text style={styles.avatarPlaceholderText}>{getConversationName().charAt(0).toUpperCase()}</Text>
+              </View>
+            );
+          })()}
           <View style={styles.headerTextContainer}>
-            <Text style={[styles.headerTitle, { color: textColor }]} numberOfLines={1}>
+            <Text style={[styles.headerTitle, { color: headerTextColor }]} numberOfLines={1}>
               {getConversationName()}
             </Text>
             {(() => {
@@ -591,28 +686,28 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               }
               return (
                 <Text style={[styles.onlineText, { color: subTextColor }]}>
-                  {conversation?.participants.length} participants
+                  tap here for group info
                 </Text>
               );
             })()}
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View style={styles.headerRightIcons}>
           <TouchableOpacity style={styles.headerIconButton} onPress={() => {
-            const calleeId = conversation?.participants.find(p => p.id !== userId)?.id;
-            if (calleeId) useCallStore.getState().initiateCall(conversationId, calleeId, true);
+            const targets = conversation?.participants.filter(p => p.id !== userId).map(p => p.id) || [];
+            if (targets.length > 0) useCallStore.getState().initiateCall(conversationId, targets, true);
           }}>
-            <Video size={24} color={isDark ? textColor : '#54656F'} />
+            <Video size={24} color={headerTextColor} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerIconButton} onPress={() => {
-            const calleeId = conversation?.participants.find(p => p.id !== userId)?.id;
-            if (calleeId) useCallStore.getState().initiateCall(conversationId, calleeId, false);
+            const targets = conversation?.participants.filter(p => p.id !== userId).map(p => p.id) || [];
+            if (targets.length > 0) useCallStore.getState().initiateCall(conversationId, targets, false);
           }}>
-            <Phone size={22} color={isDark ? textColor : '#54656F'} />
+            <Phone size={22} color={headerTextColor} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerIconButton} onPress={handleMenuPress}>
-            <MoreVertical size={24} color={isDark ? textColor : '#54656F'} />
+            <MoreVertical size={24} color={headerTextColor} />
           </TouchableOpacity>
         </View>
       </View>
@@ -657,7 +752,6 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           contentContainerStyle={styles.messagesList}
           inverted
         />
-      </ImageBackground>
 
       {renderTypingIndicator()}
 
@@ -689,7 +783,7 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
         </View>
       )}
 
-      <View style={[styles.inputWrapper, { backgroundColor: bgColor }]}>
+      <View style={[styles.inputWrapper, { backgroundColor: 'transparent' }]}>
         {showAttachMenu && (
           <View style={[styles.attachMenu, { backgroundColor: inputBgColor, borderColor }]}>
             <TouchableOpacity style={styles.attachMenuItem} onPress={() => pickDocument('document')}>
@@ -710,15 +804,18 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             </TouchableOpacity>
           </View>
         )}
-        <View style={[styles.inputContainer, { backgroundColor: inputBgColor }]}>
-          <TouchableOpacity
-            style={styles.attachButton}
-            onPress={handleAttachMedia}
-          >
-            <Plus size={26} color={subTextColor} />
-          </TouchableOpacity>
-
+        <View style={[
+          styles.inputContainer, 
+          { 
+            backgroundColor: inputBgColor, 
+            paddingBottom: Platform.OS !== 'web' && !keyboardVisible ? Math.max(insets.bottom, 12) : 12 
+          }
+        ]}>
           <View style={[styles.textInputContainer, { backgroundColor: inputFieldBgColor }]}>
+            <TouchableOpacity style={styles.actionButtonInside}>
+              <Smile size={24} color={subTextColor} />
+            </TouchableOpacity>
+
             <TextInput
               ref={inputRef}
               style={[styles.textInput, { color: textColor }]}
@@ -730,8 +827,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
                 handleTyping();
               }}
               onKeyPress={(e: any) => {
-                // Submit on Enter without Shift
-                if (e.nativeEvent.key === 'Enter') {
+                // Submit on Enter without Shift (Web only)
+                if (Platform.OS === 'web' && e.nativeEvent.key === 'Enter') {
                   if (!e.nativeEvent.shiftKey) {
                     e.preventDefault();
                     if (inputText.trim().length > 0 && !isSending) {
@@ -743,16 +840,27 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
               multiline
               maxLength={4000}
             />
-            <TouchableOpacity style={styles.cameraButtonInside}>
-              <Camera size={22} color={subTextColor} />
-            </TouchableOpacity>
+
+            <View style={styles.rightActionsContainer}>
+              <TouchableOpacity
+                style={styles.actionButtonInside}
+                onPress={handleAttachMedia}
+              >
+                <Paperclip size={22} color={subTextColor} />
+              </TouchableOpacity>
+              
+              {!inputText.trim() && (
+                <TouchableOpacity style={styles.actionButtonInside}>
+                  <Camera size={22} color={subTextColor} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           <TouchableOpacity
             style={[
               styles.sendButton,
-              { backgroundColor: brandColor },
-              inputText.trim().length === 0 && { backgroundColor: brandColor }
+              { backgroundColor: brandColor }
             ]}
             onPress={inputText.trim().length > 0 ? handleSend : () => {}}
             disabled={isSending}
@@ -761,12 +869,12 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
             {inputText.trim().length > 0 ? (
               <Send size={20} color="white" />
             ) : (
-              <Mic size={22} color="white" />
+              <Mic size={24} color="white" />
             )}
           </TouchableOpacity>
         </View>
       </View>
-      </View>
+      </ImageBackground>
 
       {Platform.OS === 'web' && showSidePanel && (
         <View style={{ width: 320, backgroundColor: headerBgColor, borderLeftWidth: 1, borderLeftColor: borderColor }}>
@@ -800,7 +908,8 @@ export function ChatRoom({ conversationId }: { conversationId: string }) {
           )}
         </View>
       </Modal>
-    </KeyboardAvoidingView>
+      </View>
+    </KeyboardWrapper>
   );
 }
 
@@ -906,7 +1015,7 @@ const styles = StyleSheet.create({
     maxWidth: '80%',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 4,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.05)',
@@ -918,11 +1027,11 @@ const styles = StyleSheet.create({
   },
   ownMessage: {
     alignSelf: 'flex-end',
-    borderTopRightRadius: 2,
+    borderTopRightRadius: 0,
   },
   otherMessage: {
     alignSelf: 'flex-start',
-    borderTopLeftRadius: 2,
+    borderTopLeftRadius: 0,
   },
   messageContentWrapper: {
     flexDirection: 'row',
@@ -941,7 +1050,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-end',
     marginLeft: 'auto',
-    marginBottom: -4,
+    marginBottom: 0,
+    paddingLeft: 8,
   },
   timeText: {
     fontSize: 11,
@@ -1075,39 +1185,42 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   inputWrapper: {
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
     position: 'relative',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  attachButton: {
-    width: 36,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingTop: 8,
+    gap: 8,
   },
   textInputContainer: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    borderRadius: 9999, // Inset pill
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    minHeight: 44,
+    borderRadius: 24, // Matches WhatsApp's rounded input
+    minHeight: 48,
     maxHeight: 120,
+    overflow: 'hidden',
+  },
+  actionButtonInside: {
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rightActionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 4,
   },
   textInput: {
     flex: 1,
-    paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: 'Inter, system-ui, sans-serif',
+    // @ts-ignore - Web-only outline removal
+    outlineStyle: 'none',
   },
   cameraButtonInside: {
     padding: 10,
@@ -1115,11 +1228,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 0,
+  },
+  senderName: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  systemMessageBubble: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    maxWidth: '80%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  systemMessageText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 

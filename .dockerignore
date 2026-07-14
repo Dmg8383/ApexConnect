@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+server/node_modules
+
+# Expo
+.expo
+
+# Build outputs
+dist
+dist-web
+web-build
+
+# Native apps
+android
+ios
+
+# Electron
+electron
+
+# Backend
+server
+
+# VS Code
+.vscode
+
+# Environment
+.env
+.env.*
+
+# Logs
+*.log
+
+# Cache
+.cache
+
+# OS
+.DS_Store
+Thumbs.db

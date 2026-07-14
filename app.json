@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.apexconnect.app",
@@ -34,6 +34,16 @@
         {
           "cameraPermission": "Allow ApexConnect to access your camera for video calls.",
           "microphonePermission": "Allow ApexConnect to access your microphone for voice and video calls."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "kotlinVersion": "1.9.24",
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ],

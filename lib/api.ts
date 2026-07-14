@@ -73,6 +73,9 @@ export const api = {
   post: <T>(path: string, body?: unknown, requireAuth = true) =>
     request<T>('POST', path, body, requireAuth),
 
+  put: <T>(path: string, body?: unknown, requireAuth = true) =>
+    request<T>('PUT', path, body, requireAuth),
+
   patch: <T>(path: string, body?: unknown) =>
     request<T>('PATCH', path, body),
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, useWindowDimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, useWindowDimensions, Image, useColorScheme } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useCallsHistoryStore, CallLog } from '@/store/callsHistoryStore';
 import { useCallStore } from '@/store/callStore';
@@ -11,7 +11,8 @@ import * as Linking from 'expo-linking';
 
 export default function CallsScreen() {
   const { userId, theme } = useAuthStore();
-  const isDark = theme === 'dark';
+  const systemTheme = useColorScheme() ?? 'light';
+  const isDark = (theme === 'system' ? systemTheme : theme) === 'dark';
   
   const { calls, isLoading, fetchCalls } = useCallsHistoryStore();
   const { initiateCall } = useCallStore();
@@ -54,6 +55,17 @@ export default function CallsScreen() {
     }
   };
 
+  const handleCall = async (otherId: string, isVideo: boolean) => {
+    try {
+      const conv = await createDirectConversation(otherId);
+      if (conv && conv.id) {
+        initiateCall(conv.id, otherId, isVideo);
+      }
+    } catch (error) {
+      console.error('Failed to initiate call:', error);
+    }
+  };
+
   const renderCallIcon = (item: CallLog) => {
     const isOutgoing = item.caller_id === userId;
     const isMissed = item.status === 'missed' || item.status === 'rejected';
@@ -76,6 +88,7 @@ export default function CallsScreen() {
 
   const renderItem = ({ item, index }: { item: CallLog, index: number }) => {
     const isOutgoing = item.caller_id === userId;
+    const otherId = isOutgoing ? item.receiver_id : item.caller_id;
     const otherName = isOutgoing ? item.receiver_name : item.caller_name;
     const otherAvatar = isOutgoing ? item.receiver_avatar : item.caller_avatar;
     const isMissed = item.status === 'missed' || item.status === 'rejected';
@@ -119,7 +132,10 @@ export default function CallsScreen() {
               <Play size={20} color={brandColor} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleCall(otherId, item.type === 'video')}
+          >
             {item.type === 'video' ? (
               <Video size={24} color={brandColor} />
             ) : (

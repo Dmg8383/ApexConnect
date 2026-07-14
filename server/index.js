@@ -139,24 +139,73 @@ io.on('connection', (socket) => {
   });
 
   // ── WebRTC Calling Signaling ──────────────────────────────────────────────────
-  socket.on('call_offer', (data) => {
-    // data: { conversationId, callerId, targetId, offer, isVideo }
-    if (data.targetId) socket.to(`user:${data.targetId}`).emit('call_offer', data);
+  socket.on('call_offer', async (data) => {
+    // data: { conversationId, callerId, targetId (string or array), offer, isVideo }
+    const targetIds = Array.isArray(data.targetId) ? data.targetId : [data.targetId];
+    
+    for (const tid of targetIds) {
+      if (!tid) continue;
+      
+      const specificData = { ...data, targetId: tid };
+      socket.to(`user:${tid}`).emit('call_offer', specificData);
+      
+      // Send push notification for incoming call
+      try {
+        const db = require('./db');
+        const [callerRes, targetRes] = await Promise.all([
+          db.query('SELECT display_name, username FROM users WHERE id = $1', [data.callerId]),
+          db.query('SELECT push_token FROM users WHERE id = $1', [tid])
+        ]);
+        
+        const caller = callerRes.rows[0];
+        const target = targetRes.rows[0];
+        
+        if (caller && target && target.push_token) {
+          const callType = data.isVideo ? 'Video' : 'Voice';
+          const callerName = caller.display_name || caller.username;
+          
+          fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Accept': 'application/json',
+              'Accept-encoding': 'gzip, deflate',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: target.push_token,
+              title: `Incoming ${callType} Call`,
+              body: `${callerName} is calling you...`,
+              data: { type: 'call_offer', ...specificData },
+              sound: 'default',
+              priority: 'high'
+            }),
+          }).catch(err => console.error('Push notification network error:', err));
+        }
+      } catch (err) {
+        console.error('Failed to send call push notification:', err);
+      }
+    }
   });
 
   socket.on('call_answer', (data) => {
-    // data: { conversationId, targetId, answer }
+    // data: { conversationId, fromId, targetId, answer }
     if (data.targetId) socket.to(`user:${data.targetId}`).emit('call_answer', data);
   });
 
   socket.on('ice_candidate', (data) => {
-    // data: { conversationId, candidate, targetId }
-    if (data.targetId) socket.to(`user:${data.targetId}`).emit('ice_candidate', data);
+    // data: { conversationId, fromId, targetId, candidate }
+    const targetIds = Array.isArray(data.targetId) ? data.targetId : [data.targetId];
+    for (const tid of targetIds) {
+      if (tid) socket.to(`user:${tid}`).emit('ice_candidate', { ...data, targetId: tid });
+    }
   });
 
   socket.on('call_end', (data) => {
-    // data: { conversationId, targetId }
-    if (data.targetId) socket.to(`user:${data.targetId}`).emit('call_end', data);
+    // data: { conversationId, fromId, targetId }
+    const targetIds = Array.isArray(data.targetId) ? data.targetId : [data.targetId];
+    for (const tid of targetIds) {
+      if (tid) socket.to(`user:${tid}`).emit('call_end', { ...data, targetId: tid });
+    }
   });
 
   socket.on('disconnect', () => {

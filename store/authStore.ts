@@ -50,9 +50,9 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  theme: 'light' | 'dark';
+  theme: 'system' | 'light' | 'dark';
 
-  setTheme: (theme: 'light' | 'dark') => void;
+  setTheme: (theme: 'system' | 'light' | 'dark') => void;
   setUser: (user: User | null) => void;
   generateUserId: () => string;
   generateMnemonic: () => string;
@@ -84,7 +84,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
-      theme: 'light',
+      theme: 'system',
 
       setTheme: (theme) => set({ theme }),
       setUser: (user) => set({ user }),

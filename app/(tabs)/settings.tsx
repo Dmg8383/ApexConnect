@@ -11,9 +11,11 @@ import {
   Modal,
   useWindowDimensions,
   Platform,
+  useColorScheme,
 } from 'react-native';
 import { useRouter, Redirect } from 'expo-router';
 import { User, LogOut, Shield, Bell, HelpCircle, Edit3, Check, X, Moon, Sun, Key, MessageCircle, Users, Camera } from 'lucide-react-native';
+import { getMediaUrl } from '@/lib/media';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '@/store/authStore';
 import { unsubscribeAll } from '@/lib/realtime';
@@ -133,7 +135,8 @@ export default function SettingsScreen() {
   };
 
   // Premium Dark Mode Colors
-  const isDark = theme === 'dark';
+  const systemTheme = useColorScheme() ?? 'light';
+  const isDark = (theme === 'system' ? systemTheme : theme) === 'dark';
   const bgColor = isDark ? '#18181B' : '#F0F2F5';
   const headerBgColor = 'transparent';
   const cardBg = 'transparent';
@@ -165,9 +168,9 @@ export default function SettingsScreen() {
         <TouchableOpacity style={styles.avatarContainer} onPress={handleUpdateAvatar}>
           {user?.avatar_url ? (
             Platform.OS === 'web' ? (
-              <img src={user.avatar_url} style={{ width: 80, height: 80, borderRadius: 40, objectFit: 'cover' }} alt="Avatar" />
+              <img src={getMediaUrl(user.avatar_url)!} style={{ width: 80, height: 80, borderRadius: 40, objectFit: 'cover' }} alt="Avatar" />
             ) : (
-              <Image source={{ uri: user.avatar_url }} style={styles.avatar} />
+              <Image source={{ uri: getMediaUrl(user.avatar_url)! }} style={styles.avatar} />
             )
           ) : (
             <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? '#374151' : '#E5E7EB' }]}>

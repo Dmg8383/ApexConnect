@@ -155,6 +155,18 @@ export default function NewChatScreen() {
             Share your account ID ({userId}) with others so they can find you
           </Text>
         </View>
+
+        <View style={{ marginTop: 40 }}>
+          <TouchableOpacity
+            style={styles.newGroupButton}
+            onPress={() => router.push('/new-group')}
+          >
+            <View style={styles.newGroupIcon}>
+              <UserPlus size={24} color="white" />
+            </View>
+            <Text style={styles.newGroupText}>New Group</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -291,5 +303,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  newGroupButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+  },
+  newGroupIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  newGroupText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
   },
 });

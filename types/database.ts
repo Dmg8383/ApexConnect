@@ -75,6 +75,7 @@ export interface Database {
           user_id: string;
           joined_at: string;
           last_read_at: string | null;
+          role?: 'admin' | 'member';
         };
         Insert: {
           id?: string;
@@ -82,6 +83,7 @@ export interface Database {
           user_id: string;
           joined_at?: string;
           last_read_at?: string | null;
+          role?: 'admin' | 'member';
         };
         Update: {
           id?: string;
@@ -89,6 +91,7 @@ export interface Database {
           user_id?: string;
           joined_at?: string;
           last_read_at?: string | null;
+          role?: 'admin' | 'member';
         };
       };
       messages: {

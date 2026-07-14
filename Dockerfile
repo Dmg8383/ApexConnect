@@ -1,5 +1,5 @@
 # Stage 1: Build the Expo Web app
-FROM node:20-alpine AS builder
+FROM node:20 AS builder
 
 WORKDIR /app
 
@@ -7,10 +7,14 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy source code
 COPY . .
+
+# Accept the API URL as a build argument and set it as an ENV for the build process
+ARG EXPO_PUBLIC_API_URL
+ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
 
 # Build the web bundle using Expo
 RUN npm run build:web

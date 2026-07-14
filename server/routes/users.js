@@ -291,6 +291,20 @@ router.patch('/me', auth, async (req, res) => {
   }
 });
 
+// PUT /api/users/push-token — Save Expo push token
+router.put('/push-token', auth, async (req, res) => {
+  try {
+    const { push_token } = req.body;
+    await db.query(
+      `UPDATE users SET push_token = $1 WHERE id = $2`,
+      [push_token, req.userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/users/search/:query — Search users by ID or name
 router.get('/search/:query', auth, async (req, res) => {
   try {

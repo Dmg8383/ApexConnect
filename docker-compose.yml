@@ -6,27 +6,24 @@ services:
     container_name: whatsapp_db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: your_secure_password
-      POSTGRES_DB: whatsapp
+      POSTGRES_PASSWORD: "Takai#90990"
+      POSTGRES_DB: wapuser
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - /www/wwwroot/Apexconnect/server/schema_dump.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
     restart: unless-stopped
 
   backend:
     build:
-      context: ./server
+      context: /www/wwwroot/Apexconnect/server
       dockerfile: Dockerfile
     container_name: whatsapp_backend
     environment:
       - PORT=3002
-      - DB_USER=postgres
-      - DB_PASSWORD=your_secure_password
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=whatsapp
-      - JWT_SECRET=your_super_secret_jwt_key
+      - DATABASE_URL=postgresql://postgres:Takai%2390990@db:5432/wapuser
+      - JWT_SECRET=9f8d6c4e2a1b3f7d5e9c8b2a1f4d3e7c6b5a9f8e7d2c1b3a4f5e6d7c8b9a0f1e
     ports:
       - "3002:3002"
     depends_on:
@@ -35,14 +32,14 @@ services:
 
   frontend:
     build:
-      context: .
+      context: /www/wwwroot/Apexconnect
       dockerfile: Dockerfile
+      args:
+        - EXPO_PUBLIC_API_URL=http://34.126.129.195
+    image: fresh_whatsapp_frontend:v6
     container_name: whatsapp_frontend
     environment:
-      # This needs to be set at BUILD time ideally, but Nginx serves static files.
-      # If your frontend needs to hit the backend dynamically on the public IP,
-      # ensure EXPO_PUBLIC_API_URL was set during the Expo build process.
-      - EXPO_PUBLIC_API_URL=http://47.130.198.221:3002
+      - EXPO_PUBLIC_API_URL=http://34.126.129.195
     ports:
       - "8081:80"
     depends_on:

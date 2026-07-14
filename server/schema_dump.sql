@@ -98,7 +98,8 @@ CREATE TABLE public.conversation_participants (
     conversation_id uuid,
     user_id text,
     joined_at timestamp with time zone DEFAULT now(),
-    last_read_at timestamp with time zone
+    last_read_at timestamp with time zone,
+    role character varying(20) DEFAULT 'member'::character varying
 );
 
 
